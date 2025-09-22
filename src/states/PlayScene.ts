@@ -9,6 +9,7 @@ import { Enemy, EnemyEliminationCause } from '../entities/Enemy';
 import { EnemySpawner } from '../systems/EnemySpawner';
 import { TrajectorySystem } from '../systems/TrajectorySystem';
 import { PlayerStats } from '../entities/PlayerStats';
+import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
 
 interface WordPoolData {
   language: string;
@@ -35,8 +36,10 @@ export class PlayScene extends Phaser.Scene {
   private stageFinished = false;
   private breachY = 0;
 
-  private ranger!: Phaser.GameObjects.Rectangle;
-  private wall!: Phaser.GameObjects.Rectangle;
+  private ranger!: Phaser.GameObjects.Image;
+  private wall!: Phaser.GameObjects.Image;
+  private targetPanel!: Phaser.GameObjects.Rectangle;
+  private targetIcon!: Phaser.GameObjects.Image;
   private targetWordText!: Phaser.GameObjects.Text;
   private inputText!: Phaser.GameObjects.Text;
 
@@ -55,6 +58,7 @@ export class PlayScene extends Phaser.Scene {
     this.trajectorySystem = new TrajectorySystem();
 
     this.ensureUIScene();
+    this.cameras.main.setBackgroundColor('#020617');
     this.breachY = this.scale.height - 120;
     this.setupBattlefield();
     this.setupTexts();
@@ -116,30 +120,45 @@ export class PlayScene extends Phaser.Scene {
 
   private setupBattlefield(): void {
     const { width, height } = this.scale;
+
     this.add
-      .rectangle(width / 2, height / 2, width, height, 0x0f172a)
+      .image(width / 2, height / 2 - 24, ICON_TEXTURE_KEYS.castle)
+      .setDisplaySize(width * 1.1, height * 1.1)
+      .setAlpha(0.18)
+      .setDepth(-6);
+
+    this.add
+      .rectangle(width / 2, height / 2, width, height, 0x061125, 0.6)
       .setDepth(-5);
 
     this.add
-      .rectangle(width / 2, height - 200, width, 180, 0x1e293b, 0.6)
-      .setDepth(-4);
+      .rectangle(width / 2, this.breachY + 90, width, 180, 0x111827, 0.82)
+      .setDepth(-4)
+      .setStrokeStyle(2, 0x1e293b);
 
     this.wall = this.add
-      .rectangle(width / 2, this.breachY + 60, width, 120, 0x334155)
-      .setStrokeStyle(4, 0x475569)
+      .image(width / 2, this.breachY + 58, ICON_TEXTURE_KEYS.wallEmblem)
+      .setDisplaySize(width * 0.62, 180)
+      .setAlpha(0.82)
       .setDepth(-3);
 
-    const parapetWidth = 80;
-    for (let i = 0; i < width / parapetWidth; i += 1) {
+    for (let i = 0; i < width; i += 80) {
       this.add
-        .rectangle(40 + i * parapetWidth, this.breachY - 60, parapetWidth - 12, 36, 0x1f2937)
+        .rectangle(40 + i, this.breachY - 28, 58, 24, 0x0f172a, 0.9)
+        .setStrokeStyle(2, 0x1e293b)
         .setDepth(-2);
     }
 
     this.ranger = this.add
-      .rectangle(width / 2, this.breachY - 28, 36, 64, 0xe2e8f0)
-      .setStrokeStyle(2, 0xcbd5f5)
+      .image(width / 2, this.breachY - 24, ICON_TEXTURE_KEYS.ranger)
+      .setDisplaySize(140, 140)
+      .setOrigin(0.5, 0.92)
       .setDepth(-1);
+
+    this.add
+      .rectangle(width / 2, 64, width * 0.7, 50, 0x0f172a, 0.72)
+      .setStrokeStyle(2, 0x1e293b)
+      .setDepth(-2);
 
     this.add
       .text(width / 2, 64, '输入目标敌人单词发射箭矢，空格键释放炸弹', {
@@ -147,23 +166,35 @@ export class PlayScene extends Phaser.Scene {
         fontSize: '22px',
         color: '#cbd5f5',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(-1);
   }
 
   private setupTexts(): void {
     const { width } = this.scale;
+
+    this.targetPanel = this.add
+      .rectangle(width / 2, 156, width * 0.62, 150, 0x0b1220, 0.72)
+      .setStrokeStyle(2, 0x1e293b);
+
+    this.targetIcon = this.add
+      .image(width / 2, this.targetPanel.y - 58, ICON_TEXTURE_KEYS.target)
+      .setDisplaySize(88, 88)
+      .setDepth(1)
+      .setVisible(false);
+
     this.targetWordText = this.add
-      .text(width / 2, 120, '', {
-        fontFamily: 'monospace',
+      .text(width / 2, this.targetPanel.y + 6, '', {
+        fontFamily: '"Noto Sans Mono", monospace',
         fontSize: '56px',
         color: '#f8fafc',
       })
       .setOrigin(0.5);
 
     this.inputText = this.add
-      .text(width / 2, 188, '', {
-        fontFamily: 'monospace',
-        fontSize: '42px',
+      .text(width / 2, this.targetPanel.y + 58, '', {
+        fontFamily: '"Noto Sans Mono", monospace',
+        fontSize: '40px',
         color: '#38bdf8',
       })
       .setOrigin(0.5);
@@ -237,6 +268,8 @@ export class PlayScene extends Phaser.Scene {
       this.targetWordText.setText('');
       this.inputText.setText('');
       this.inputText.setColor('#38bdf8');
+      this.targetPanel.setAlpha(0.55);
+      this.targetIcon.setVisible(false);
       return;
     }
 
@@ -246,6 +279,10 @@ export class PlayScene extends Phaser.Scene {
     this.targetWordText.setText(nextTarget.word);
     this.inputText.setText('');
     this.inputText.setColor('#38bdf8');
+    this.targetPanel.setAlpha(0.9);
+    this.targetPanel.setStrokeStyle(2, 0x1e293b);
+    this.targetIcon.setVisible(true);
+    this.targetIcon.setTint(0xffffff);
     EventBus.emit(Events.WordChanged, nextTarget.word);
   }
 
@@ -262,6 +299,13 @@ export class PlayScene extends Phaser.Scene {
   private handleTypingProgress(progress: TypingProgress): void {
     this.inputText.setText(progress.input);
     this.inputText.setColor(progress.isMistake ? '#f87171' : '#38bdf8');
+    if (progress.isMistake) {
+      this.targetIcon.setTint(0xf87171);
+      this.targetPanel.setStrokeStyle(3, 0xf87171);
+    } else {
+      this.targetIcon.setTint(0xffffff);
+      this.targetPanel.setStrokeStyle(2, 0x1e293b);
+    }
     if (this.currentEnemy) {
       this.currentEnemy.setProgress(progress.input.length);
     }
@@ -277,27 +321,40 @@ export class PlayScene extends Phaser.Scene {
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
     target.setProgress(word.length);
     this.typingSystem.setTarget('');
+    this.targetIcon.setTint(0xffffff);
     this.launchArrow(target);
   }
 
   private handleTypingMistake(): void {
     this.scoreSystem.registerMistake();
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
+    this.targetIcon.setTint(0xf87171);
+    this.targetPanel.setStrokeStyle(3, 0xf87171);
     EventBus.emit(Events.DisplayMessage, '输入错误，连击已重置');
   }
 
   private launchArrow(target: Enemy): void {
+    const startX = this.ranger.x;
+    const startY = this.ranger.y - this.ranger.displayHeight * 0.82;
     const arrow = this.add
-      .rectangle(this.ranger.x, this.ranger.y - 36, 6, 32, 0xfbbf24)
-      .setOrigin(0.5, 1)
-      .setDepth(8);
+      .image(startX, startY, ICON_TEXTURE_KEYS.arrow)
+      .setDisplaySize(54, 54)
+      .setDepth(12);
+
+    const updateRotation = () => {
+      const angle = Phaser.Math.Angle.Between(arrow.x, arrow.y, target.x, target.y - 28);
+      arrow.setRotation(angle);
+    };
+
+    updateRotation();
 
     this.tweens.add({
       targets: arrow,
       x: target.x,
-      y: target.y,
+      y: target.y - 28,
       duration: 220,
       ease: Phaser.Math.Easing.Cubic.Out,
+      onUpdate: updateRotation,
       onComplete: () => {
         target.hitByArrow();
         arrow.destroy();
@@ -317,12 +374,29 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
+    const explosion = this.add
+      .image(this.scale.width / 2, this.breachY - 160, ICON_TEXTURE_KEYS.bomb)
+      .setDisplaySize(220, 220)
+      .setAlpha(0.85)
+      .setDepth(20)
+      .setScale(0.6);
+
+    this.tweens.add({
+      targets: explosion,
+      alpha: 0,
+      scale: 1.4,
+      duration: 360,
+      ease: Phaser.Math.Easing.Cubic.Out,
+      onComplete: () => explosion.destroy(),
+    });
+
     const targets = [...this.activeEnemies];
     this.currentEnemy?.markAsTargeted(false);
     this.currentEnemy = undefined;
     this.typingSystem.setTarget('');
     this.targetWordText.setText('');
     this.inputText.setText('');
+    this.targetIcon.setVisible(false);
 
     targets.forEach((enemy) => enemy.eliminateByBomb());
 
@@ -357,6 +431,7 @@ export class PlayScene extends Phaser.Scene {
     this.stageFinished = true;
     this.enemySpawner.stop();
     this.typingSystem.setTarget('');
+    this.targetIcon.setVisible(false);
 
     const summary = this.scoreSystem.summary();
     EventBus.emit(Events.DisplayMessage, success ? '胜利！城墙安然无恙。' : '城墙沦陷，守城失败。');
