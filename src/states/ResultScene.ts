@@ -3,6 +3,7 @@ import { ScoreSummary } from '../core/EventBus';
 
 interface ResultSceneData {
   summary: ScoreSummary;
+  success: boolean;
 }
 
 export class ResultScene extends Phaser.Scene {
@@ -16,8 +17,10 @@ export class ResultScene extends Phaser.Scene {
       ? Math.round(data.summary.accuracy * 100)
       : 100;
 
+    const title = data.success ? '守城成功' : '守城失败';
+
     this.add
-      .text(width / 2, height / 2 - 100, '战斗总结', {
+      .text(width / 2, height / 2 - 110, title, {
         fontFamily: 'sans-serif',
         fontSize: '42px',
         color: '#f1f5f9',
@@ -27,8 +30,10 @@ export class ResultScene extends Phaser.Scene {
     const lines = [
       `得分：${data.summary.score}`,
       `连击：${data.summary.combo}`,
-      `击败敌人：${data.summary.wordsCompleted}`,
+      `击败敌人：${data.summary.enemiesDefeated}（箭矢 ${data.summary.typedEliminations} / 炸弹 ${data.summary.bombEliminations}）`,
       `准确率：${accuracy}%`,
+      `炸弹使用：${data.summary.bombsUsed}`,
+      `城墙受损：${data.summary.breaches}`,
     ];
 
     this.add

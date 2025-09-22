@@ -5,10 +5,13 @@ export class ScoreSystem {
   private combo = 0;
   private totalTypedChars = 0;
   private mistakes = 0;
-  private wordsCompleted = 0;
+  private typedEliminations = 0;
+  private bombEliminations = 0;
+  private bombsUsed = 0;
+  private breaches = 0;
 
   registerSuccess(wordLength: number): void {
-    this.wordsCompleted += 1;
+    this.typedEliminations += 1;
     this.totalTypedChars += wordLength;
     this.combo += 1;
     const comboMultiplier = 1 + Math.floor(this.combo / 5) * 0.2;
@@ -22,12 +25,38 @@ export class ScoreSystem {
     this.publishUpdate();
   }
 
+  registerBombClear(eliminated: number): void {
+    if (eliminated <= 0) {
+      return;
+    }
+
+    this.bombsUsed += 1;
+    this.bombEliminations += eliminated;
+    this.score += eliminated * 15;
+    this.publishUpdate();
+  }
+
+  registerBreach(): void {
+    this.breaches += 1;
+    this.mistakes += 1;
+    this.combo = 0;
+    this.publishUpdate();
+  }
+
+  getCombo(): number {
+    return this.combo;
+  }
+
   summary(): ScoreSummary {
     return {
       score: this.score,
       combo: this.combo,
       accuracy: this.calculateAccuracy(),
-      wordsCompleted: this.wordsCompleted,
+      enemiesDefeated: this.typedEliminations + this.bombEliminations,
+      typedEliminations: this.typedEliminations,
+      bombEliminations: this.bombEliminations,
+      bombsUsed: this.bombsUsed,
+      breaches: this.breaches,
     };
   }
 

@@ -33,10 +33,6 @@ export class TypingSystem extends Phaser.Events.EventEmitter {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    if (!this.targetWord) {
-      return;
-    }
-
     if (event.key === 'Backspace') {
       event.preventDefault();
       if (this.inputBuffer.length > 0) {
@@ -47,7 +43,22 @@ export class TypingSystem extends Phaser.Events.EventEmitter {
       return;
     }
 
+    if (!this.targetWord) {
+      return;
+    }
+
     if (event.key.length > 1) {
+      if (event.key === 'Escape') {
+        return;
+      }
+      return;
+    }
+
+    if (event.key.trim().length === 0) {
+      return;
+    }
+
+    if (!/^[a-z0-9]$/i.test(event.key)) {
       return;
     }
 

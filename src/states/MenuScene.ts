@@ -17,7 +17,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height / 2, '按下空格或点击开始挑战', {
+      .text(width / 2, height / 2, '按下空格或点击开始守城', {
         fontFamily: 'sans-serif',
         fontSize: '24px',
         color: '#cbd5f5',
@@ -25,7 +25,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height / 2 + 60, '在游戏中输入屏幕上的单词击败敌人', {
+      .text(width / 2, height / 2 + 60, '输入敌人单词射出箭矢，空格触发炸弹清屏', {
         fontFamily: 'sans-serif',
         fontSize: '18px',
         color: '#94a3b8',
