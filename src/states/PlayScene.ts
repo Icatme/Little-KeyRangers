@@ -34,7 +34,7 @@ export class PlayScene extends Phaser.Scene {
   private currentEnemy?: Enemy;
   private defeatedCount = 0;
   private stageFinished = false;
-  private breachY = 0;
+  private breachX = 0;
 
   private ranger!: Phaser.GameObjects.Image;
   private wall!: Phaser.GameObjects.Image;
@@ -59,7 +59,8 @@ export class PlayScene extends Phaser.Scene {
 
     this.ensureUIScene();
     this.cameras.main.setBackgroundColor('#020617');
-    this.breachY = this.scale.height - 120;
+    const breachPadding = Phaser.Math.Clamp(this.scale.width * 0.22, 160, 280);
+    this.breachX = breachPadding;
     this.setupBattlefield();
     this.setupTexts();
 
@@ -73,7 +74,7 @@ export class PlayScene extends Phaser.Scene {
       this,
       this.stageConfig.spawn,
       pool.words,
-      this.breachY,
+      this.breachX,
       this.stageConfig.dangerZone,
     );
     this.enemySpawner.on('spawn', this.handleEnemySpawn, this);
@@ -122,8 +123,8 @@ export class PlayScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.add
-      .image(width / 2, height / 2 - 24, ICON_TEXTURE_KEYS.castle)
-      .setDisplaySize(width * 1.1, height * 1.1)
+      .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
+      .setDisplaySize(width * 1.08, height * 1.1)
       .setAlpha(0.18)
       .setDepth(-6);
 
@@ -131,32 +132,34 @@ export class PlayScene extends Phaser.Scene {
       .rectangle(width / 2, height / 2, width, height, 0x061125, 0.6)
       .setDepth(-5);
 
+    const laneWidth = width - this.breachX;
+
     this.add
-      .rectangle(width / 2, this.breachY + 90, width, 180, 0x111827, 0.82)
+      .rectangle(this.breachX + laneWidth / 2, height / 2, laneWidth, height * 0.82, 0x0b1220, 0.72)
       .setDepth(-4)
       .setStrokeStyle(2, 0x1e293b);
 
     this.wall = this.add
-      .image(width / 2, this.breachY + 58, ICON_TEXTURE_KEYS.wallEmblem)
-      .setDisplaySize(width * 0.62, 180)
+      .image(this.breachX * 0.55, height / 2, ICON_TEXTURE_KEYS.wallEmblem)
+      .setDisplaySize(this.breachX * 0.9, height * 0.6)
       .setAlpha(0.82)
       .setDepth(-3);
 
-    for (let i = 0; i < width; i += 80) {
+    for (let y = 80; y < height - 40; y += 70) {
       this.add
-        .rectangle(40 + i, this.breachY - 28, 58, 24, 0x0f172a, 0.9)
+        .rectangle(this.breachX + 18, y, 26, 56, 0x0f172a, 0.9)
         .setStrokeStyle(2, 0x1e293b)
         .setDepth(-2);
     }
 
     this.ranger = this.add
-      .image(width / 2, this.breachY - 24, ICON_TEXTURE_KEYS.ranger)
-      .setDisplaySize(140, 140)
-      .setOrigin(0.5, 0.92)
+      .image(this.breachX * 0.55, height / 2 + 6, ICON_TEXTURE_KEYS.ranger)
+      .setDisplaySize(112, 112)
+      .setOrigin(0.46, 0.92)
       .setDepth(-1);
 
     this.add
-      .rectangle(width / 2, 64, width * 0.7, 50, 0x0f172a, 0.72)
+      .rectangle(width / 2, 64, width * 0.62, 50, 0x0f172a, 0.72)
       .setStrokeStyle(2, 0x1e293b)
       .setDepth(-2);
 
@@ -173,28 +176,36 @@ export class PlayScene extends Phaser.Scene {
   private setupTexts(): void {
     const { width } = this.scale;
 
+    const panelWidth = Math.min(width * 0.5, 520);
+    const panelX = width * 0.58;
+    const panelLeft = panelX - panelWidth / 2;
+    const iconX = panelLeft + 56;
+    const textAreaLeft = iconX + 70;
+    const textAreaRight = panelLeft + panelWidth - 32;
+    const textCenterX = (textAreaLeft + textAreaRight) / 2;
+
     this.targetPanel = this.add
-      .rectangle(width / 2, 156, width * 0.62, 150, 0x0b1220, 0.72)
+      .rectangle(panelX, 156, panelWidth, 140, 0x0b1220, 0.72)
       .setStrokeStyle(2, 0x1e293b);
 
     this.targetIcon = this.add
-      .image(width / 2, this.targetPanel.y - 58, ICON_TEXTURE_KEYS.target)
-      .setDisplaySize(88, 88)
+      .image(iconX, this.targetPanel.y, ICON_TEXTURE_KEYS.target)
+      .setDisplaySize(76, 76)
       .setDepth(1)
       .setVisible(false);
 
     this.targetWordText = this.add
-      .text(width / 2, this.targetPanel.y + 6, '', {
+      .text(textCenterX, this.targetPanel.y - 8, '', {
         fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '56px',
+        fontSize: '48px',
         color: '#f8fafc',
       })
       .setOrigin(0.5);
 
     this.inputText = this.add
-      .text(width / 2, this.targetPanel.y + 58, '', {
+      .text(textCenterX, this.targetPanel.y + 44, '', {
         fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '40px',
+        fontSize: '34px',
         color: '#38bdf8',
       })
       .setOrigin(0.5);
@@ -292,7 +303,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     const sorted = [...this.activeEnemies];
-    sorted.sort((a, b) => b.y - a.y);
+    sorted.sort((a, b) => a.x - b.x);
     return sorted[0];
   }
 
@@ -334,15 +345,19 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private launchArrow(target: Enemy): void {
-    const startX = this.ranger.x;
-    const startY = this.ranger.y - this.ranger.displayHeight * 0.82;
+    const startX = this.ranger.x + this.ranger.displayWidth * 0.38;
+    const startY = this.ranger.y - this.ranger.displayHeight * 0.18;
+    const targetWidth = target.displayWidth || target.width || 180;
+    const targetHeight = target.displayHeight || target.height || 140;
+    const impactX = target.x - targetWidth * 0.35;
+    const impactY = target.y - targetHeight * 0.22;
     const arrow = this.add
       .image(startX, startY, ICON_TEXTURE_KEYS.arrow)
-      .setDisplaySize(54, 54)
+      .setDisplaySize(48, 48)
       .setDepth(12);
 
     const updateRotation = () => {
-      const angle = Phaser.Math.Angle.Between(arrow.x, arrow.y, target.x, target.y - 28);
+      const angle = Phaser.Math.Angle.Between(arrow.x, arrow.y, impactX, impactY);
       arrow.setRotation(angle);
     };
 
@@ -350,9 +365,9 @@ export class PlayScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: arrow,
-      x: target.x,
-      y: target.y - 28,
-      duration: 220,
+      x: impactX,
+      y: impactY,
+      duration: 240,
       ease: Phaser.Math.Easing.Cubic.Out,
       onUpdate: updateRotation,
       onComplete: () => {
@@ -374,9 +389,10 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
+    const explosionX = this.breachX + (this.scale.width - this.breachX) / 2;
     const explosion = this.add
-      .image(this.scale.width / 2, this.breachY - 160, ICON_TEXTURE_KEYS.bomb)
-      .setDisplaySize(220, 220)
+      .image(explosionX, this.scale.height / 2, ICON_TEXTURE_KEYS.bomb)
+      .setDisplaySize(200, 200)
       .setAlpha(0.85)
       .setDepth(20)
       .setScale(0.6);

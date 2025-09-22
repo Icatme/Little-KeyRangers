@@ -16,8 +16,7 @@
   "author": "",
   "license": "GPL-2.0",
   "dependencies": {
-    "phaser": "^3.90.0",
-    "react-game-icons": "^1.1.0"
+    "phaser": "^3.90.0"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

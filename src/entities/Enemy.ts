@@ -9,7 +9,7 @@ interface EnemyOptions {
   word: string;
   path: EnemyPath;
   speed: number;
-  breachY: number;
+  breachX: number;
   dangerZone: number;
 }
 
@@ -26,7 +26,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   private readonly label: Phaser.GameObjects.Text;
 
   private readonly speed: number;
-  private readonly breachY: number;
+  private readonly breachX: number;
   private readonly dangerZone: number;
 
   private readonly panelWidth: number;
@@ -36,6 +36,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   private elapsed = 0;
   private progress = 0;
   private readonly startX: number;
+  private readonly startY: number;
   private readonly zigzagFrequency: number;
   private readonly driftSpeed: number;
   private targetted = false;
@@ -47,42 +48,43 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.word = options.word;
     this.path = options.path;
     this.speed = options.speed;
-    this.breachY = options.breachY;
+    this.breachX = options.breachX;
     this.dangerZone = options.dangerZone;
 
     this.startX = x;
-    this.zigzagFrequency = Phaser.Math.FloatBetween(0.0035, 0.0055);
-    this.driftSpeed = Phaser.Math.FloatBetween(-12, 12);
+    this.startY = y;
+    this.zigzagFrequency = Phaser.Math.FloatBetween(0.0026, 0.0044);
+    this.driftSpeed = Phaser.Math.FloatBetween(-26, 26);
 
-    this.panelWidth = Math.max(160, this.word.length * 34);
+    this.panelWidth = Math.max(140, this.word.length * 30);
 
     this.sprite = scene.add
-      .image(0, -54, ICON_TEXTURE_KEYS.enemy)
-      .setDisplaySize(118, 118)
+      .image(-12, -46, ICON_TEXTURE_KEYS.enemy)
+      .setDisplaySize(104, 104)
       .setDepth(1);
 
     this.shadow = scene.add
-      .ellipse(0, 64, this.panelWidth * 0.52, 34, 0x000000, 0.28)
+      .ellipse(10, 58, this.panelWidth * 0.48, 30, 0x000000, 0.28)
       .setDepth(-1);
 
     this.wordPanel = scene.add
-      .rectangle(0, 28, this.panelWidth, this.panelHeight, 0x0f172a, 0.88)
+      .rectangle(12, 24, this.panelWidth, this.panelHeight, 0x0f172a, 0.88)
       .setStrokeStyle(2, 0x475569);
 
     this.progressBar = scene.add
-      .rectangle(-this.panelWidth / 2, 28, 0, this.panelHeight, 0x38bdf8, 0.55)
+      .rectangle(12 - this.panelWidth / 2, 24, 0, this.panelHeight, 0x38bdf8, 0.55)
       .setOrigin(0, 0.5)
       .setVisible(false);
 
     this.label = scene.add
-      .text(0, 28, this.word, {
+      .text(12, 24, this.word, {
         fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '26px',
+        fontSize: '24px',
         color: '#f8fafc',
       })
       .setOrigin(0.5);
 
-    this.setSize(this.panelWidth, this.panelHeight + 140);
+    this.setSize(this.panelWidth + 60, this.panelHeight + 120);
     this.add([this.shadow, this.sprite, this.wordPanel, this.progressBar, this.label]);
     scene.add.existing(this);
 
@@ -97,32 +99,37 @@ export class Enemy extends Phaser.GameObjects.Container {
     const deltaSeconds = delta / 1000;
     this.elapsed += delta;
 
-    this.y += this.speed * deltaSeconds;
+    this.x -= this.speed * deltaSeconds;
 
     if (this.path === 'zigzag') {
-      const amplitude = Math.min(180, Math.max(60, this.word.length * 12));
+      const amplitude = Math.min(140, Math.max(48, this.word.length * 10));
       const offset = Math.sin(this.elapsed * this.zigzagFrequency) * amplitude;
-      this.x = Phaser.Math.Clamp(this.startX + offset, 120, this.scene.scale.width - 120);
+      this.y = Phaser.Math.Clamp(this.startY + offset, 110, this.scene.scale.height - 110);
     } else if (this.path === 'drift') {
-      this.x = Phaser.Math.Clamp(
-        this.x + this.driftSpeed * deltaSeconds,
-        100,
-        this.scene.scale.width - 100,
+      this.y = Phaser.Math.Clamp(
+        this.y + this.driftSpeed * deltaSeconds,
+        96,
+        this.scene.scale.height - 96,
       );
     }
 
-    const progressRatio = Phaser.Math.Clamp((this.y - 60) / (this.breachY - 60), 0.2, 1);
-    this.shadow.setScale(progressRatio, Phaser.Math.Clamp(progressRatio, 0.25, 0.6));
+    const totalDistance = Math.max(60, this.startX - this.breachX);
+    const travelled = this.startX - this.x;
+    const progressRatio = Phaser.Math.Clamp(travelled / totalDistance, 0.2, 1);
+    this.shadow.setScale(
+      Phaser.Math.Clamp(progressRatio, 0.4, 0.8),
+      Phaser.Math.Clamp(progressRatio, 0.25, 0.58),
+    );
     this.shadow.setAlpha(Phaser.Math.Clamp(progressRatio * 0.45, 0.12, 0.4));
 
-    if (this.y >= this.breachY) {
+    if (this.x <= this.breachX) {
       this.state = 'breached';
       this.emit('breached');
       this.fadeOut(220, '#ef4444');
       return;
     }
 
-    const distanceToBreach = this.breachY - this.y;
+    const distanceToBreach = this.x - this.breachX;
     const nowDangerous = distanceToBreach <= this.dangerZone;
     if (nowDangerous !== this.inDangerZone) {
       this.inDangerZone = nowDangerous;
@@ -170,11 +177,13 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
     this.state = 'eliminating';
 
+    const bodyWidth = this.displayWidth || this.width || 180;
+    const bodyHeight = this.displayHeight || this.height || 160;
     const impact = this.scene.add
-      .image(this.x, this.y - 24, ICON_TEXTURE_KEYS.arrow)
-      .setDisplaySize(64, 64)
+      .image(this.x - bodyWidth * 0.32, this.y - bodyHeight * 0.18, ICON_TEXTURE_KEYS.arrow)
+      .setDisplaySize(52, 52)
       .setDepth(this.depth + 2)
-      .setRotation(Phaser.Math.DegToRad(-20));
+      .setRotation(Phaser.Math.DegToRad(0));
 
     this.scene.tweens.add({
       targets: impact,
@@ -187,7 +196,8 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     this.scene.tweens.add({
       targets: this,
-      y: this.y + 120,
+      x: this.x + Math.min(200, bodyWidth * 0.7),
+      y: this.y - bodyHeight * 0.18,
       alpha: 0,
       duration: 320,
       ease: Phaser.Math.Easing.Cubic.In,
@@ -224,7 +234,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
-      y: this.y + offset,
+      x: this.x - offset,
       duration: 280,
       ease: Phaser.Math.Easing.Cubic.In,
       onComplete: () => {

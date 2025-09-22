@@ -5,7 +5,7 @@ import type { SpawnConfig } from '../config/stageConfig';
 export class EnemySpawner extends Phaser.Events.EventEmitter {
   private readonly config: SpawnConfig;
   private readonly scene: Phaser.Scene;
-  private readonly breachY: number;
+  private readonly breachX: number;
   private readonly dangerZone: number;
   private readonly baseWords: string[];
   private wordBag: string[];
@@ -17,13 +17,13 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
     scene: Phaser.Scene,
     config: SpawnConfig,
     wordPool: string[],
-    breachY: number,
+    breachX: number,
     dangerZone: number,
   ) {
     super();
     this.scene = scene;
     this.config = config;
-    this.breachY = breachY;
+    this.breachX = breachX;
     this.dangerZone = dangerZone;
     this.baseWords = wordPool.length > 0 ? [...wordPool] : ['defend', 'castle', 'arrow'];
     this.wordBag = this.shuffleWords(this.baseWords);
@@ -60,14 +60,16 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
   private spawnEnemy(): void {
     const word = this.nextWord();
     const path = Phaser.Utils.Array.GetRandom(this.config.paths);
-    const x = Phaser.Math.Between(140, this.scene.scale.width - 140);
+    const spawnOffset = Phaser.Math.Between(80, 140);
+    const x = this.scene.scale.width + spawnOffset;
+    const y = Phaser.Math.Between(120, this.scene.scale.height - 120);
     const speed = Phaser.Math.FloatBetween(this.config.speed.min, this.config.speed.max);
 
-    const enemy = new Enemy(this.scene, x, -80, {
+    const enemy = new Enemy(this.scene, x, y, {
       word,
       path: path as EnemyPath,
       speed,
-      breachY: this.breachY,
+      breachX: this.breachX,
       dangerZone: this.dangerZone,
     });
 

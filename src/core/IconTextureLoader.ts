@@ -7,12 +7,8 @@ import {
   SvgElvenCastle,
   SvgEvilMinion,
   SvgFireBomb,
-} from 'react-game-icons/dist/paths';
-
-type SvgPathDefinition = {
-  d: string;
-  fillRule?: string;
-};
+  type SvgPathDefinition,
+} from '../assets/iconPaths';
 
 export const ICON_TEXTURE_KEYS = {
   ranger: 'icon-ranger',
@@ -93,9 +89,8 @@ function createSvgDataUri({
     ? `<rect x=\"0\" y=\"0\" width=\"${viewBox}\" height=\"${viewBox}\" fill=\"${backgroundFill}\" />`
     : '';
 
-  const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${viewBox} ${viewBox}\">${backgroundElement}<path ${attributes.join(
-    ' ',
-  )} /></svg>`;
+  const pathAttributes = attributes.join(' ');
+  const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${viewBox} ${viewBox}\">${backgroundElement}<path ${pathAttributes} /></svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
