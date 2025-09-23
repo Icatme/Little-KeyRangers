@@ -1,13 +1,29 @@
 import Phaser from 'phaser';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { getStages, getCurrentStageIndex, isStageUnlocked, setCurrentStageIndex } from '../core/StageManager';
+
+interface StageOption {
+  name: string;
+  description: string;
+  difficulty: string;
+  id: number;
+}
 
 export class MenuScene extends Phaser.Scene {
+  private selectedStageIndex = 0;
+  private readonly stages = getStages();
+  private stageTexts: Phaser.GameObjects.Text[] = [];
+  private stageInfoText!: Phaser.GameObjects.Text;
+  private startHint!: Phaser.GameObjects.Text;
+  private hintTween?: Phaser.Tweens.Tween;
+
   constructor() {
     super('MenuScene');
   }
 
   create(): void {
     const { width, height } = this.scale;
+    this.selectedStageIndex = getCurrentStageIndex();
     this.cameras.main.setBackgroundColor('#020617');
 
     this.add
@@ -17,19 +33,19 @@ export class MenuScene extends Phaser.Scene {
       .setDepth(-2);
 
     const banner = this.add
-      .rectangle(width / 2, height * 0.22, width * 0.72, 120, 0x0f172a, 0.85)
+      .rectangle(width / 2, height * 0.2, width * 0.72, 116, 0x0f172a, 0.85)
       .setStrokeStyle(2, 0x1e293b);
 
     this.add
-      .text(banner.x, banner.y - 16, 'Little Key Rangers', {
+      .text(banner.x, banner.y - 18, 'Little Key Rangers', {
         fontFamily: '"Cinzel", "Noto Serif SC", serif',
-        fontSize: '56px',
+        fontSize: '52px',
         color: '#f8fafc',
       })
       .setOrigin(0.5);
 
     this.add
-      .text(banner.x, banner.y + 42, '守护城墙的键盘游侠', {
+      .text(banner.x, banner.y + 40, '守护城墙的键盘游侠', {
         fontFamily: '"Noto Sans SC", sans-serif',
         fontSize: '22px',
         color: '#cbd5f5',
@@ -37,59 +53,165 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .image(width / 2, height / 2 + 12, ICON_TEXTURE_KEYS.ranger)
-      .setDisplaySize(260, 260)
+      .image(width / 2, height * 0.42, ICON_TEXTURE_KEYS.ranger)
+      .setDisplaySize(220, 220)
       .setOrigin(0.5, 0.9)
       .setAlpha(0.95);
 
-    const infoPanel = this.add
-      .rectangle(width / 2, height * 0.68, width * 0.62, 150, 0x0b1220, 0.75)
+    const stagePanel = this.add
+      .rectangle(width / 2, height * 0.7, width * 0.68, 220, 0x0b1220, 0.78)
       .setStrokeStyle(2, 0x1e293b);
 
     this.add
-      .text(infoPanel.x, infoPanel.y - 28, '输入敌人身上的单词发射箭矢', {
-        fontFamily: 'sans-serif',
+      .text(stagePanel.x, stagePanel.y - stagePanel.height / 2 + 26, '选择关卡', {
+        fontFamily: '"Noto Sans SC", sans-serif',
         fontSize: '22px',
         color: '#e2e8f0',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
 
-    this.add
-      .text(infoPanel.x, infoPanel.y + 8, '空格键释放魔法炸弹，清除屏幕上的敌人', {
-        fontFamily: 'sans-serif',
+    const optionLeft = stagePanel.x - stagePanel.width / 2 + 40;
+    const optionTop = stagePanel.y - stagePanel.height / 2 + 66;
+
+    this.stageTexts = this.stages.map((stage, index) => {
+      const locked = !isStageUnlocked(index);
+      const option = this.add
+        .text(optionLeft, optionTop + index * 54, this.formatStageLabel(stage, locked), {
+          fontFamily: '"Noto Sans SC", sans-serif',
+          fontSize: '20px',
+          color: locked ? '#64748b' : '#cbd5f5',
+        })
+        .setOrigin(0, 0.5);
+
+      if (!locked) {
+        option.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+          this.updateSelection(index);
+        });
+      }
+
+      return option;
+    });
+
+    this.stageInfoText = this.add
+      .text(stagePanel.x, stagePanel.y + stagePanel.height / 2 - 52, '', {
+        fontFamily: '"Noto Sans SC", sans-serif',
         fontSize: '18px',
         color: '#94a3b8',
+        wordWrap: { width: stagePanel.width - 80 },
+        align: 'center',
       })
       .setOrigin(0.5);
 
-    const startHint = this.add
-      .text(width / 2, infoPanel.y + 64, '按下空格或点击开始守城', {
+    this.startHint = this.add
+      .text(stagePanel.x, stagePanel.y + stagePanel.height / 2 - 16, '', {
         fontFamily: 'sans-serif',
         fontSize: '22px',
         color: '#facc15',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.startGame());
 
-    this.tweens.add({
-      targets: startHint,
-      alpha: { from: 0.3, to: 1 },
+    this.hintTween = this.tweens.add({
+      targets: this.startHint,
+      alpha: { from: 0.4, to: 1 },
       duration: 900,
       yoyo: true,
       repeat: -1,
     });
 
     this.add
-      .image(width * 0.86, height * 0.86, ICON_TEXTURE_KEYS.target)
-      .setDisplaySize(120, 120)
+      .image(width * 0.88, height * 0.85, ICON_TEXTURE_KEYS.target)
+      .setDisplaySize(110, 110)
       .setAlpha(0.22)
       .setDepth(-1);
 
-    this.input.keyboard?.once('keydown-SPACE', this.startGame, this);
-    this.input.keyboard?.once('keydown-ENTER', this.startGame, this);
-    this.input.once('pointerdown', this.startGame, this);
+    this.input.keyboard?.on('keydown-SPACE', this.startGame, this);
+    this.input.keyboard?.on('keydown-ENTER', this.startGame, this);
+    this.input.keyboard?.on('keydown-UP', () => this.changeSelection(-1));
+    this.input.keyboard?.on('keydown-DOWN', () => this.changeSelection(1));
+
+    this.updateSelection(this.selectedStageIndex);
+  }
+
+  private formatStageLabel(stage: StageOption, locked: boolean): string {
+    const difficulty = this.difficultyShort(stage.difficulty);
+    return locked ? `${stage.name} · ${difficulty}（未解锁）` : `${stage.name} · ${difficulty}`;
+  }
+
+  private difficultyShort(level: string): string {
+    switch (level) {
+      case 'easy':
+        return '入门';
+      case 'normal':
+        return '进阶';
+      case 'hard':
+        return '终极';
+      default:
+        return level;
+    }
+  }
+
+  private updateSelection(index: number): void {
+    if (index < 0 || index >= this.stages.length) {
+      return;
+    }
+
+    if (!isStageUnlocked(index)) {
+      this.flashLockedHint();
+      return;
+    }
+
+    this.selectedStageIndex = index;
+
+    this.stageTexts.forEach((text, i) => {
+      const locked = !isStageUnlocked(i);
+      if (locked) {
+        text.setColor('#64748b');
+        text.setFontStyle('normal');
+      } else if (i === this.selectedStageIndex) {
+        text.setColor('#f8fafc');
+        text.setFontStyle('bold');
+      } else {
+        text.setColor('#cbd5f5');
+        text.setFontStyle('normal');
+      }
+    });
+
+    const stage = this.stages[this.selectedStageIndex];
+    this.stageInfoText.setText(stage.description);
+    this.startHint.setText(`按空格/回车或点击开始（当前：${stage.name}）`);
+  }
+
+  private changeSelection(direction: number): void {
+    let nextIndex = this.selectedStageIndex;
+    const steps = this.stages.length;
+    for (let i = 0; i < steps; i += 1) {
+      nextIndex = (nextIndex + direction + this.stages.length) % this.stages.length;
+      if (isStageUnlocked(nextIndex)) {
+        this.updateSelection(nextIndex);
+        return;
+      }
+    }
+    this.flashLockedHint();
+  }
+
+  private flashLockedHint(): void {
+    this.stageInfoText.setText('尚未解锁该关卡，请先完成前一关。');
+    this.time.delayedCall(1200, () => {
+      const stage = this.stages[this.selectedStageIndex];
+      this.stageInfoText.setText(stage.description);
+    });
   }
 
   private startGame(): void {
-    this.scene.start('PlayScene');
+    if (!isStageUnlocked(this.selectedStageIndex)) {
+      this.flashLockedHint();
+      return;
+    }
+
+    const stage = this.stages[this.selectedStageIndex];
+    setCurrentStageIndex(this.selectedStageIndex);
+    this.scene.start('PlayScene', { stageId: stage.id });
   }
 }

@@ -41,6 +41,14 @@ export class BombSystem {
     return this.charges > 0;
   }
 
+  getCharges(): number {
+    return this.charges;
+  }
+
+  getMaxCharges(): number {
+    return this.maxCharges;
+  }
+
   activate(): boolean {
     if (!this.canActivate()) {
       return false;
@@ -51,6 +59,23 @@ export class BombSystem {
     this.publishStatus();
     EventBus.emit(Events.BombActivated);
     return true;
+  }
+
+  addCharge(amount = 1): boolean {
+    if (amount <= 0) {
+      return false;
+    }
+
+    const previous = this.charges;
+    this.charges = Math.min(this.maxCharges, this.charges + amount);
+    if (this.charges !== previous) {
+      this.cooldownRemaining = 0;
+      this.publishStatus();
+      return true;
+    }
+
+    this.publishStatus();
+    return false;
   }
 
   registerCombo(combo: number): void {

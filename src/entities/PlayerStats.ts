@@ -16,6 +16,11 @@ export class PlayerStats {
     return this.wallHealth;
   }
 
+  repair(amount = 1): number {
+    this.wallHealth = Math.min(this.maxWallHealth, this.wallHealth + amount);
+    return this.wallHealth;
+  }
+
   isDefeated(): boolean {
     return this.wallHealth <= 0;
   }
