@@ -1,18 +1,28 @@
 import Phaser from 'phaser';
 import { ScoreSummary } from '../core/EventBus';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { getStages, setCurrentStageIndex } from '../core/StageManager';
 
 interface ResultSceneData {
   summary: ScoreSummary;
   success: boolean;
+  stageId: number;
+  stageIndex: number;
+  stageName: string;
+  hasNextStage: boolean;
+  nextStageUnlocked: boolean;
 }
 
 export class ResultScene extends Phaser.Scene {
+  private data!: ResultSceneData;
+
   constructor() {
     super('ResultScene');
   }
 
   create(data: ResultSceneData): void {
+    this.data = data;
+
     const { width, height } = this.scale;
     const accuracy = Number.isFinite(data.summary.accuracy)
       ? Math.round(data.summary.accuracy * 100)
@@ -31,7 +41,7 @@ export class ResultScene extends Phaser.Scene {
 
     this.add
       .image(width / 2, height * 0.25, ICON_TEXTURE_KEYS.ranger)
-      .setDisplaySize(200, 200)
+      .setDisplaySize(180, 180)
       .setOrigin(0.5)
       .setAlpha(0.95);
 
@@ -40,6 +50,14 @@ export class ResultScene extends Phaser.Scene {
         fontFamily: '"Cinzel", "Noto Serif SC", serif',
         fontSize: '52px',
         color: titleColor,
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(width / 2, height * 0.18, `关卡：${data.stageName}`, {
+        fontFamily: '"Noto Sans SC", sans-serif',
+        fontSize: '22px',
+        color: '#cbd5f5',
       })
       .setOrigin(0.5);
 
@@ -65,21 +83,25 @@ export class ResultScene extends Phaser.Scene {
       const lineY = startY + index * 48;
       this.add
         .image(panel.x - panel.width / 2 + 50, lineY, metric.icon)
-        .setDisplaySize(36, 36)
+        .setDisplaySize(32, 32)
         .setTint(metric.tint)
         .setOrigin(0.5);
       this.add
         .text(panel.x - panel.width / 2 + 90, lineY, metric.text, {
           fontFamily: '"Noto Sans SC", sans-serif',
-          fontSize: '22px',
+          fontSize: '20px',
           color: '#e2e8f0',
         })
         .setOrigin(0, 0.5);
     });
 
+    const instructions: string[] = ['按空格重试当前关卡', '按 M 返回主菜单'];
+    if (data.success && data.hasNextStage && data.nextStageUnlocked) {
+      instructions.push('按 N 前往下一关');
+    }
 
     const actionHint = this.add
-      .text(width / 2, height * 0.88, '按空格重新开始，或按 M 返回主菜单', {
+      .text(width / 2, height * 0.88, instructions.join(' / '), {
         fontFamily: 'sans-serif',
         fontSize: '20px',
         color: '#facc15',
@@ -96,11 +118,24 @@ export class ResultScene extends Phaser.Scene {
 
     this.input.keyboard?.once('keydown-SPACE', this.restartGame, this);
     this.input.keyboard?.once('keydown-M', this.backToMenu, this);
+    if (data.success && data.hasNextStage && data.nextStageUnlocked) {
+      this.input.keyboard?.once('keydown-N', this.startNextStage, this);
+    }
     this.input.once('pointerdown', this.restartGame, this);
   }
 
   private restartGame(): void {
-    this.scene.start('PlayScene');
+    setCurrentStageIndex(this.data.stageIndex);
+    this.scene.start('PlayScene', { stageId: this.data.stageId });
+  }
+
+  private startNextStage(): void {
+    if (!this.data.success || !this.data.hasNextStage || !this.data.nextStageUnlocked) {
+      return;
+    }
+    const nextStage = getStages()[this.data.stageIndex + 1];
+    setCurrentStageIndex(this.data.stageIndex + 1);
+    this.scene.start('PlayScene', { stageId: nextStage.id });
   }
 
   private backToMenu(): void {

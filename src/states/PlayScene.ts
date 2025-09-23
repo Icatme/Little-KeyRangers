@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
-import wordPool from '../config/wordPools/easy.json';
-import { defaultStage, StageConfig } from '../config/stageConfig';
+import { StageConfig } from '../config/stageConfig';
 import { EventBus, Events } from '../core/EventBus';
 import { ScoreSystem } from '../systems/ScoreSystem';
 import { TypingProgress, TypingSystem } from '../systems/TypingSystem';
@@ -10,16 +9,20 @@ import { EnemySpawner } from '../systems/EnemySpawner';
 import { TrajectorySystem } from '../systems/TrajectorySystem';
 import { PlayerStats } from '../entities/PlayerStats';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { Boss } from '../entities/Boss';
+import { Powerup, PowerupType } from '../entities/Powerup';
+import { getStageContext, getStages, isStageUnlocked, markStageCompleted } from '../core/StageManager';
+import { StageDefinition } from '../config/stages';
 
-interface WordPoolData {
-  language: string;
-  difficulty: string;
-  words: string[];
+interface PlaySceneData {
+  stageId?: number;
 }
 
 interface BombClearSummary {
   total: number;
 }
+
+type WordTarget = Enemy | Boss;
 
 export class PlayScene extends Phaser.Scene {
   private typingSystem!: TypingSystem;
@@ -29,28 +32,48 @@ export class PlayScene extends Phaser.Scene {
   private trajectorySystem!: TrajectorySystem;
   private playerStats!: PlayerStats;
 
-  private readonly stageConfig: StageConfig = defaultStage;
+  private stageDefinition!: StageDefinition;
+  private stageConfig!: StageConfig;
+  private stageIndex = 0;
+  private dropRate = 0;
+
   private activeEnemies: Enemy[] = [];
-  private currentEnemy?: Enemy;
+  private currentTarget?: WordTarget;
+  private boss?: Boss;
+  private bossSpawned = false;
+  private bossDefeated = false;
   private defeatedCount = 0;
   private stageFinished = false;
   private breachX = 0;
 
+  private powerups: Powerup[] = [];
+
   private ranger!: Phaser.GameObjects.Image;
   private wall!: Phaser.GameObjects.Image;
-  private targetPanel!: Phaser.GameObjects.Rectangle;
-  private targetIcon!: Phaser.GameObjects.Image;
-  private targetWordText!: Phaser.GameObjects.Text;
-  private inputText!: Phaser.GameObjects.Text;
+  private stageBanner!: Phaser.GameObjects.Text;
+  private stageDetailText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('PlayScene');
+  }
+
+  init(data: PlaySceneData): void {
+    const context = getStageContext(data?.stageId);
+    this.stageDefinition = context.stage;
+    this.stageConfig = this.stageDefinition.stageConfig;
+    this.stageIndex = context.index;
+    this.dropRate = this.stageDefinition.dropRate;
   }
 
   create(): void {
     this.stageFinished = false;
     this.defeatedCount = 0;
     this.activeEnemies = [];
+    this.currentTarget = undefined;
+    this.boss = undefined;
+    this.bossSpawned = false;
+    this.bossDefeated = false;
+    this.powerups = [];
 
     this.scoreSystem = new ScoreSystem();
     this.playerStats = new PlayerStats(this.stageConfig.wall.maxHp);
@@ -62,25 +85,23 @@ export class PlayScene extends Phaser.Scene {
     const breachPadding = Phaser.Math.Clamp(this.scale.width * 0.22, 160, 280);
     this.breachX = breachPadding;
     this.setupBattlefield();
-    this.setupTexts();
 
     this.typingSystem = new TypingSystem(this);
     this.typingSystem.on('progress', this.handleTypingProgress, this);
     this.typingSystem.on('complete', this.handleTypingComplete, this);
     this.typingSystem.on('mistake', this.handleTypingMistake, this);
 
-    const pool = wordPool as WordPoolData;
     this.enemySpawner = new EnemySpawner(
       this,
       this.stageConfig.spawn,
-      pool.words,
+      this.stageDefinition.wordPool,
       this.breachX,
       this.stageConfig.dangerZone,
     );
     this.enemySpawner.on('spawn', this.handleEnemySpawn, this);
 
     EventBus.emit(Events.ScoreUpdated, this.scoreSystem.summary());
-    EventBus.emit(Events.DisplayMessage, '敌人来袭，保卫城墙！');
+    EventBus.emit(Events.DisplayMessage, this.stageDefinition.description);
     EventBus.emit(Events.WallStatusUpdated, {
       current: this.playerStats.getWallHealth(),
       max: this.playerStats.maxWallHealth,
@@ -108,6 +129,10 @@ export class PlayScene extends Phaser.Scene {
     this.enemySpawner.update(delta, this.activeEnemies.length);
     this.trajectorySystem.update(delta);
     this.bombSystem.update(delta);
+    if (this.boss && !this.boss.isDefeated()) {
+      this.boss.advance(delta);
+    }
+    this.powerups.forEach((powerup) => powerup.update(delta));
     this.checkForStageCompletion();
   }
 
@@ -124,8 +149,8 @@ export class PlayScene extends Phaser.Scene {
 
     this.add
       .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
-      .setDisplaySize(width * 1.08, height * 1.1)
-      .setAlpha(0.18)
+      .setDisplaySize(width * 1.02, height * 1.04)
+      .setAlpha(0.16)
       .setDepth(-6);
 
     this.add
@@ -141,79 +166,73 @@ export class PlayScene extends Phaser.Scene {
 
     this.wall = this.add
       .image(this.breachX * 0.55, height / 2, ICON_TEXTURE_KEYS.wallEmblem)
-      .setDisplaySize(this.breachX * 0.9, height * 0.6)
-      .setAlpha(0.82)
+      .setDisplaySize(this.breachX * 0.78, height * 0.56)
+      .setAlpha(0.8)
       .setDepth(-3);
 
-    for (let y = 80; y < height - 40; y += 70) {
+    for (let y = 80; y < height - 40; y += 72) {
       this.add
-        .rectangle(this.breachX + 18, y, 26, 56, 0x0f172a, 0.9)
+        .rectangle(this.breachX + 18, y, 22, 52, 0x0f172a, 0.9)
         .setStrokeStyle(2, 0x1e293b)
         .setDepth(-2);
     }
 
     this.ranger = this.add
-      .image(this.breachX * 0.55, height / 2 + 6, ICON_TEXTURE_KEYS.ranger)
-      .setDisplaySize(112, 112)
+      .image(this.breachX * 0.56, height / 2 + 6, ICON_TEXTURE_KEYS.ranger)
+      .setDisplaySize(96, 96)
       .setOrigin(0.46, 0.92)
       .setDepth(-1);
 
-    this.add
-      .rectangle(width / 2, 64, width * 0.62, 50, 0x0f172a, 0.72)
+    const banner = this.add
+      .rectangle(width / 2, 64, width * 0.7, 60, 0x0f172a, 0.72)
       .setStrokeStyle(2, 0x1e293b)
       .setDepth(-2);
 
-    this.add
-      .text(width / 2, 64, '输入目标敌人单词发射箭矢，空格键释放炸弹', {
-        fontFamily: 'sans-serif',
-        fontSize: '22px',
+    this.stageBanner = this.add
+      .text(banner.x, banner.y - 10, `${this.stageDefinition.name}`, {
+        fontFamily: '"Cinzel", "Noto Serif SC", serif',
+        fontSize: '30px',
+        color: '#f8fafc',
+      })
+      .setOrigin(0.5)
+      .setDepth(-1);
+
+    this.stageDetailText = this.add
+      .text(banner.x, banner.y + 16, `${this.difficultyLabel()} · ${this.stageDefinition.description}`, {
+        fontFamily: '"Noto Sans SC", sans-serif',
+        fontSize: '18px',
         color: '#cbd5f5',
+      })
+      .setOrigin(0.5)
+      .setDepth(-1);
+
+    this.add
+      .text(width / 2, 116, '输入敌人单词发射箭矢 · 空格键释放炸弹', {
+        fontFamily: '"Noto Sans SC", sans-serif',
+        fontSize: '18px',
+        color: '#94a3b8',
       })
       .setOrigin(0.5)
       .setDepth(-1);
   }
 
-  private setupTexts(): void {
-    const { width } = this.scale;
-
-    const panelWidth = Math.min(width * 0.5, 520);
-    const panelX = width * 0.58;
-    const panelLeft = panelX - panelWidth / 2;
-    const iconX = panelLeft + 56;
-    const textAreaLeft = iconX + 70;
-    const textAreaRight = panelLeft + panelWidth - 32;
-    const textCenterX = (textAreaLeft + textAreaRight) / 2;
-
-    this.targetPanel = this.add
-      .rectangle(panelX, 156, panelWidth, 140, 0x0b1220, 0.72)
-      .setStrokeStyle(2, 0x1e293b);
-
-    this.targetIcon = this.add
-      .image(iconX, this.targetPanel.y, ICON_TEXTURE_KEYS.target)
-      .setDisplaySize(76, 76)
-      .setDepth(1)
-      .setVisible(false);
-
-    this.targetWordText = this.add
-      .text(textCenterX, this.targetPanel.y - 8, '', {
-        fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '48px',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5);
-
-    this.inputText = this.add
-      .text(textCenterX, this.targetPanel.y + 44, '', {
-        fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '34px',
-        color: '#38bdf8',
-      })
-      .setOrigin(0.5);
+  private difficultyLabel(): string {
+    switch (this.stageDefinition.difficulty) {
+      case 'easy':
+        return '难度：入门';
+      case 'normal':
+        return '难度：进阶';
+      case 'hard':
+        return '难度：终极';
+      default:
+        return '难度：未知';
+    }
   }
 
   private handleEnemySpawn(enemy: Enemy): void {
     enemy.setDepth(5);
     enemy.setProgress(0);
+    enemy.resetTypingState();
     this.activeEnemies.push(enemy);
     this.trajectorySystem.register(enemy);
 
@@ -233,6 +252,7 @@ export class PlayScene extends Phaser.Scene {
 
     if (cause === 'arrow') {
       EventBus.emit(Events.DisplayMessage, '箭矢命中，敌人坠落！');
+      this.maybeSpawnPowerup(enemy.x);
     }
 
     this.refreshTargetSelection();
@@ -264,40 +284,36 @@ export class PlayScene extends Phaser.Scene {
 
   private refreshTargetSelection(): void {
     const nextTarget = this.pickNextTarget();
-    if (nextTarget === this.currentEnemy) {
+    if (nextTarget === this.currentTarget) {
       return;
     }
 
-    if (this.currentEnemy) {
-      this.currentEnemy.markAsTargeted(false);
+    if (this.currentTarget) {
+      this.currentTarget.markAsTargeted(false);
     }
 
-    this.currentEnemy = nextTarget;
+    this.currentTarget = nextTarget;
 
     if (!nextTarget) {
       this.typingSystem.setTarget('');
-      this.targetWordText.setText('');
-      this.inputText.setText('');
-      this.inputText.setColor('#38bdf8');
-      this.targetPanel.setAlpha(0.55);
-      this.targetIcon.setVisible(false);
+      EventBus.emit(Events.WordChanged, '');
       return;
     }
 
+    if (nextTarget instanceof Enemy || nextTarget instanceof Boss) {
+      nextTarget.resetTypingState();
+    }
+
     nextTarget.markAsTargeted(true);
-    nextTarget.setProgress(0);
     this.typingSystem.setTarget(nextTarget.word);
-    this.targetWordText.setText(nextTarget.word);
-    this.inputText.setText('');
-    this.inputText.setColor('#38bdf8');
-    this.targetPanel.setAlpha(0.9);
-    this.targetPanel.setStrokeStyle(2, 0x1e293b);
-    this.targetIcon.setVisible(true);
-    this.targetIcon.setTint(0xffffff);
     EventBus.emit(Events.WordChanged, nextTarget.word);
   }
 
-  private pickNextTarget(): Enemy | undefined {
+  private pickNextTarget(): WordTarget | undefined {
+    if (this.boss && !this.bossDefeated) {
+      return this.boss;
+    }
+
     if (this.activeEnemies.length === 0) {
       return undefined;
     }
@@ -308,52 +324,50 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private handleTypingProgress(progress: TypingProgress): void {
-    this.inputText.setText(progress.input);
-    this.inputText.setColor(progress.isMistake ? '#f87171' : '#38bdf8');
-    if (progress.isMistake) {
-      this.targetIcon.setTint(0xf87171);
-      this.targetPanel.setStrokeStyle(3, 0xf87171);
-    } else {
-      this.targetIcon.setTint(0xffffff);
-      this.targetPanel.setStrokeStyle(2, 0x1e293b);
-    }
-    if (this.currentEnemy) {
-      this.currentEnemy.setProgress(progress.input.length);
-    }
-  }
-
-  private handleTypingComplete(word: string): void {
-    if (!this.currentEnemy) {
+    if (!this.currentTarget) {
       return;
     }
 
-    const target = this.currentEnemy;
+    this.currentTarget.updateTypingPreview(progress.input, progress.isMistake);
+    this.currentTarget.setProgress(progress.input.length);
+  }
+
+  private handleTypingComplete(word: string): void {
+    if (!this.currentTarget) {
+      return;
+    }
+
+    const target = this.currentTarget;
     this.scoreSystem.registerSuccess(word.length);
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
+    target.updateTypingPreview(word, false);
     target.setProgress(word.length);
     this.typingSystem.setTarget('');
-    this.targetIcon.setTint(0xffffff);
+
+    if (target instanceof Boss) {
+      target.handleWordCompleted();
+      return;
+    }
+
     this.launchArrow(target);
   }
 
   private handleTypingMistake(): void {
     this.scoreSystem.registerMistake();
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
-    this.targetIcon.setTint(0xf87171);
-    this.targetPanel.setStrokeStyle(3, 0xf87171);
     EventBus.emit(Events.DisplayMessage, '输入错误，连击已重置');
   }
 
   private launchArrow(target: Enemy): void {
     const startX = this.ranger.x + this.ranger.displayWidth * 0.38;
     const startY = this.ranger.y - this.ranger.displayHeight * 0.18;
-    const targetWidth = target.displayWidth || target.width || 180;
-    const targetHeight = target.displayHeight || target.height || 140;
+    const targetWidth = target.displayWidth || target.width || 140;
+    const targetHeight = target.displayHeight || target.height || 120;
     const impactX = target.x - targetWidth * 0.35;
     const impactY = target.y - targetHeight * 0.22;
     const arrow = this.add
       .image(startX, startY, ICON_TEXTURE_KEYS.arrow)
-      .setDisplaySize(48, 48)
+      .setDisplaySize(46, 46)
       .setDepth(12);
 
     const updateRotation = () => {
@@ -380,7 +394,11 @@ export class PlayScene extends Phaser.Scene {
   private tryActivateBomb(event: KeyboardEvent): void {
     event.preventDefault();
     if (this.activeEnemies.length === 0) {
-      EventBus.emit(Events.DisplayMessage, '暂时没有敌人，炸弹保持待命');
+      if (this.boss && !this.bossDefeated) {
+        EventBus.emit(Events.DisplayMessage, 'Boss 不惧怕炸弹，专注打字击退他！');
+      } else {
+        EventBus.emit(Events.DisplayMessage, '暂时没有敌人，炸弹保持待命');
+      }
       return;
     }
 
@@ -407,12 +425,9 @@ export class PlayScene extends Phaser.Scene {
     });
 
     const targets = [...this.activeEnemies];
-    this.currentEnemy?.markAsTargeted(false);
-    this.currentEnemy = undefined;
-    this.typingSystem.setTarget('');
-    this.targetWordText.setText('');
-    this.inputText.setText('');
-    this.targetIcon.setVisible(false);
+    this.currentTarget?.markAsTargeted(false);
+    this.currentTarget = this.boss && !this.bossDefeated ? this.boss : undefined;
+    this.typingSystem.setTarget(this.currentTarget ? this.currentTarget.word : '');
 
     targets.forEach((enemy) => enemy.eliminateByBomb());
 
@@ -421,11 +436,76 @@ export class PlayScene extends Phaser.Scene {
     EventBus.emit(Events.DisplayMessage, `炸弹清除了 ${summary.total} 名敌人！`);
   }
 
+  private maybeSpawnPowerup(sourceX?: number): void {
+    if (this.stageFinished || this.dropRate <= 0) {
+      return;
+    }
+
+    if (Math.random() > this.dropRate) {
+      return;
+    }
+
+    const laneWidth = this.scale.width - this.breachX;
+    const randomX = this.breachX + laneWidth * Phaser.Math.FloatBetween(0.2, 0.9);
+    const spawnX = Phaser.Math.Clamp(sourceX ?? randomX, this.breachX + 48, this.scale.width - 48);
+    const type = this.choosePowerupType();
+    const powerup = new Powerup(this, spawnX, {
+      type,
+      fallSpeed: Phaser.Math.Between(120, 170),
+      groundY: this.scale.height - 88,
+    });
+    this.powerups.push(powerup);
+
+    powerup.once('collected', (powerupType: PowerupType) => {
+      this.handlePowerupCollected(powerup, powerupType);
+    });
+    powerup.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.powerups = this.powerups.filter((entry) => entry !== powerup);
+    });
+  }
+
+  private choosePowerupType(): PowerupType {
+    const wallNeedsRepair = this.playerStats.getWallHealth() < this.playerStats.maxWallHealth;
+    const bombsNeedCharge = this.bombSystem.getCharges() < this.bombSystem.getMaxCharges();
+
+    if (bombsNeedCharge && !wallNeedsRepair) {
+      return 'bomb';
+    }
+    if (wallNeedsRepair && !bombsNeedCharge) {
+      return 'repair';
+    }
+    return Math.random() < 0.5 ? 'bomb' : 'repair';
+  }
+
+  private handlePowerupCollected(powerup: Powerup, type: PowerupType): void {
+    if (type === 'bomb') {
+      const gained = this.bombSystem.addCharge(1);
+      if (gained) {
+        EventBus.emit(Events.DisplayMessage, '补给落入城内，炸弹+1！');
+      } else {
+        EventBus.emit(Events.DisplayMessage, '炸弹仓已满，补给暂存。');
+      }
+      return;
+    }
+
+    const before = this.playerStats.getWallHealth();
+    const after = this.playerStats.repair(1);
+    EventBus.emit(Events.WallStatusUpdated, {
+      current: after,
+      max: this.playerStats.maxWallHealth,
+    });
+    if (after > before) {
+      EventBus.emit(Events.DisplayMessage, '维修完成，城墙耐久+1！');
+    } else {
+      EventBus.emit(Events.DisplayMessage, '城墙完好，备用材料入库。');
+    }
+  }
+
   private removeEnemy(enemy: Enemy): void {
     this.trajectorySystem.unregister(enemy);
     this.activeEnemies = this.activeEnemies.filter((active) => active !== enemy);
-    if (this.currentEnemy === enemy) {
-      this.currentEnemy = undefined;
+    if (this.currentTarget === enemy) {
+      this.currentTarget = undefined;
     }
   }
 
@@ -434,9 +514,86 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    if (this.defeatedCount >= this.stageConfig.spawn.total && this.activeEnemies.length === 0) {
+    if (!this.bossSpawned && this.defeatedCount >= this.stageConfig.spawn.total && this.activeEnemies.length === 0) {
+      this.spawnBoss();
+      return;
+    }
+
+    if (this.bossSpawned && !this.bossDefeated) {
+      return;
+    }
+
+    if (this.defeatedCount >= this.stageConfig.spawn.total && this.activeEnemies.length === 0 && this.bossDefeated) {
       this.finishRound(true);
     }
+  }
+
+  private spawnBoss(): void {
+    if (this.bossSpawned) {
+      return;
+    }
+    this.bossSpawned = true;
+
+    const spawnX = this.scale.width + 160;
+    const spawnY = this.scale.height / 2;
+    this.boss = new Boss(this, spawnX, spawnY, {
+      words: [...this.stageDefinition.boss.words],
+      speed: this.stageDefinition.boss.speed,
+      pushback: this.stageDefinition.boss.pushback,
+      damage: this.stageDefinition.boss.damage,
+      breachX: this.breachX,
+      dangerZone: this.stageConfig.dangerZone,
+      spriteScale: this.stageDefinition.boss.spriteScale,
+    });
+    this.boss.setDepth(9);
+
+    this.boss.on('breached', () => this.handleBossBreach());
+    this.boss.on('defeated', () => this.handleBossDefeated());
+    this.boss.on('word:changed', (nextWord: string) => {
+      if (this.stageFinished) {
+        return;
+      }
+      this.typingSystem.setTarget(nextWord);
+      EventBus.emit(Events.WordChanged, nextWord);
+      EventBus.emit(Events.DisplayMessage, 'Boss 被击退，单词更新！');
+      this.currentTarget = this.boss ?? undefined;
+      this.currentTarget?.markAsTargeted(true);
+    });
+
+    EventBus.emit(Events.DisplayMessage, `${this.stageDefinition.boss.name} 出现！打完全部单词才能击败它。`);
+    this.currentTarget?.markAsTargeted(false);
+    this.currentTarget = this.boss;
+    this.boss.resetTypingState();
+    this.boss.markAsTargeted(true);
+    this.typingSystem.setTarget(this.boss.word);
+    EventBus.emit(Events.WordChanged, this.boss.word);
+  }
+
+  private handleBossBreach(): void {
+    if (this.stageFinished || !this.boss) {
+      return;
+    }
+
+    const remaining = this.playerStats.takeDamage(this.boss.damage);
+    this.scoreSystem.registerBreach();
+    EventBus.emit(Events.WallStatusUpdated, {
+      current: remaining,
+      max: this.playerStats.maxWallHealth,
+    });
+    EventBus.emit(Events.DisplayMessage, `${this.stageDefinition.boss.name} 突破了城墙！`);
+    this.finishRound(false);
+  }
+
+  private handleBossDefeated(): void {
+    if (!this.boss || this.bossDefeated) {
+      return;
+    }
+    this.bossDefeated = true;
+    EventBus.emit(Events.DisplayMessage, `${this.stageDefinition.boss.name} 被完全击退！`);
+    this.currentTarget = undefined;
+    this.boss = undefined;
+    this.refreshTargetSelection();
+    this.checkForStageCompletion();
   }
 
   private finishRound(success: boolean): void {
@@ -446,21 +603,42 @@ export class PlayScene extends Phaser.Scene {
 
     this.stageFinished = true;
     this.enemySpawner.stop();
+    this.boss?.stop();
     this.typingSystem.setTarget('');
-    this.targetIcon.setVisible(false);
+    this.currentTarget = undefined;
+
+    this.powerups.forEach((powerup) => powerup.destroy());
+    this.powerups = [];
 
     const summary = this.scoreSystem.summary();
+    if (success) {
+      markStageCompleted(this.stageIndex);
+    }
+
+    const stageList = getStages();
+    const hasNextStage = this.stageIndex < stageList.length - 1;
+    const nextStageUnlocked = hasNextStage && isStageUnlocked(this.stageIndex + 1);
+
     EventBus.emit(Events.DisplayMessage, success ? '胜利！城墙安然无恙。' : '城墙沦陷，守城失败。');
 
     this.time.delayedCall(900, () => {
       this.scene.stop('UIScene');
-      this.scene.start('ResultScene', { summary, success });
+      this.scene.start('ResultScene', {
+        summary,
+        success,
+        stageId: this.stageDefinition.id,
+        stageIndex: this.stageIndex,
+        stageName: this.stageDefinition.name,
+        hasNextStage,
+        nextStageUnlocked,
+      });
     });
   }
 
   private returnToMenu(): void {
     this.stageFinished = true;
     this.enemySpawner.stop();
+    this.boss?.stop();
     this.scene.stop('UIScene');
     this.scene.start('MenuScene');
   }

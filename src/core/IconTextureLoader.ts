@@ -35,13 +35,11 @@ const ICON_DEFINITIONS: IconDescriptor[] = [
     key: ICON_TEXTURE_KEYS.ranger,
     path: SvgBowman,
     fill: '#f8fafc',
-    backgroundFill: '#0f172a',
   },
   {
     key: ICON_TEXTURE_KEYS.enemy,
     path: SvgEvilMinion,
     fill: '#f87171',
-    backgroundFill: '#020617',
   },
   {
     key: ICON_TEXTURE_KEYS.castle,

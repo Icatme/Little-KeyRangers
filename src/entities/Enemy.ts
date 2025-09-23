@@ -16,14 +16,15 @@ interface EnemyOptions {
 type EnemyState = 'spawning' | 'descending' | 'eliminating' | 'breached' | 'inactive';
 
 export class Enemy extends Phaser.GameObjects.Container {
-  readonly word: string;
+  private currentWord: string;
   readonly path: EnemyPath;
 
   private readonly sprite: Phaser.GameObjects.Image;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly wordPanel: Phaser.GameObjects.Rectangle;
   private readonly progressBar: Phaser.GameObjects.Rectangle;
-  private readonly label: Phaser.GameObjects.Text;
+  private readonly typedText: Phaser.GameObjects.Text;
+  private readonly remainingText: Phaser.GameObjects.Text;
 
   private readonly speed: number;
   private readonly breachX: number;
@@ -31,6 +32,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
   private readonly panelWidth: number;
   private readonly panelHeight: number = 46;
+  private readonly textLeft: number;
 
   private state: EnemyState = 'spawning';
   private elapsed = 0;
@@ -45,7 +47,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, x: number, y: number, options: EnemyOptions) {
     super(scene, x, y);
 
-    this.word = options.word;
+    this.currentWord = options.word;
     this.path = options.path;
     this.speed = options.speed;
     this.breachX = options.breachX;
@@ -56,11 +58,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.zigzagFrequency = Phaser.Math.FloatBetween(0.0026, 0.0044);
     this.driftSpeed = Phaser.Math.FloatBetween(-26, 26);
 
-    this.panelWidth = Math.max(140, this.word.length * 30);
+    this.panelWidth = Math.max(140, this.currentWord.length * 28);
+    this.textLeft = 12 - this.panelWidth / 2 + 10;
 
     this.sprite = scene.add
       .image(-12, -46, ICON_TEXTURE_KEYS.enemy)
-      .setDisplaySize(104, 104)
+      .setDisplaySize(92, 92)
       .setDepth(1);
 
     this.shadow = scene.add
@@ -76,19 +79,28 @@ export class Enemy extends Phaser.GameObjects.Container {
       .setOrigin(0, 0.5)
       .setVisible(false);
 
-    this.label = scene.add
-      .text(12, 24, this.word, {
-        fontFamily: '"Noto Sans Mono", monospace',
-        fontSize: '24px',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5);
+    const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
+      fontFamily: '"Noto Sans Mono", monospace',
+      fontSize: '22px',
+      color: '#f8fafc',
+    };
+
+    this.typedText = scene.add
+      .text(this.textLeft, 24, '', { ...textStyle, color: '#38bdf8' })
+      .setOrigin(0, 0.5);
+    this.remainingText = scene.add
+      .text(this.textLeft, 24, this.currentWord, textStyle)
+      .setOrigin(0, 0.5);
 
     this.setSize(this.panelWidth + 60, this.panelHeight + 120);
-    this.add([this.shadow, this.sprite, this.wordPanel, this.progressBar, this.label]);
+    this.add([this.shadow, this.sprite, this.wordPanel, this.progressBar, this.typedText, this.remainingText]);
     scene.add.existing(this);
 
     this.state = 'descending';
+  }
+
+  get word(): string {
+    return this.currentWord;
   }
 
   advance(delta: number): void {
@@ -142,19 +154,23 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   setProgress(progressCount: number): void {
-    this.progress = Phaser.Math.Clamp(progressCount, 0, this.word.length);
-    const ratio = this.word.length === 0 ? 0 : this.progress / this.word.length;
+    this.progress = Phaser.Math.Clamp(progressCount, 0, this.currentWord.length);
+    const ratio = this.currentWord.length === 0 ? 0 : this.progress / this.currentWord.length;
     const width = this.panelWidth * ratio;
     this.progressBar.setDisplaySize(width, this.panelHeight);
     this.progressBar.setVisible(ratio > 0);
 
-    if (this.progress >= this.word.length) {
+    if (this.progress >= this.currentWord.length) {
       this.wordPanel.setFillStyle(0x14532d, 0.92);
       this.sprite.setTint(0xfef3c7);
+      this.typedText.setColor('#34d399');
     } else {
       this.wordPanel.setFillStyle(0x0f172a, 0.88);
       this.sprite.clearTint();
+      this.typedText.setColor('#38bdf8');
     }
+
+    this.updateTypingPreview(this.currentWord.slice(0, this.progress), false);
   }
 
   markAsTargeted(isTarget: boolean): void {
@@ -169,6 +185,31 @@ export class Enemy extends Phaser.GameObjects.Container {
       this.wordPanel.setStrokeStyle(2, 0x475569);
       this.sprite.clearTint();
     }
+  }
+
+  updateTypingPreview(input: string, isMistake: boolean): void {
+    const trimmed = input.slice(0, this.currentWord.length);
+    this.typedText.setText(trimmed);
+    this.remainingText.setText(this.currentWord.slice(trimmed.length));
+    this.remainingText.setX(this.textLeft + this.typedText.displayWidth);
+
+    if (isMistake) {
+      this.typedText.setColor('#f87171');
+    } else if (trimmed.length >= this.currentWord.length) {
+      this.typedText.setColor('#34d399');
+    } else if (this.progress >= this.currentWord.length) {
+      this.typedText.setColor('#34d399');
+    } else {
+      this.typedText.setColor('#38bdf8');
+    }
+  }
+
+  resetTypingState(): void {
+    this.progress = 0;
+    this.updateTypingPreview('', false);
+    this.progressBar.setVisible(false);
+    this.wordPanel.setFillStyle(0x0f172a, 0.88);
+    this.sprite.clearTint();
   }
 
   hitByArrow(): void {
@@ -250,7 +291,8 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.shadow.destroy();
     this.wordPanel.destroy();
     this.progressBar.destroy();
-    this.label.destroy();
+    this.typedText.destroy();
+    this.remainingText.destroy();
     super.destroy(fromScene);
   }
 }
