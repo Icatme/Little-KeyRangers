@@ -14,7 +14,7 @@ interface PowerupOptions {
 }
 
 export class Powerup extends Phaser.GameObjects.Container {
-  readonly type: PowerupType;
+  override readonly type: PowerupType;
   readonly requiresTyping: boolean;
 
   private readonly speed: number;
