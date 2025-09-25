@@ -13,12 +13,13 @@ export class UIScene extends Phaser.Scene {
   private messageTimer?: Phaser.Time.TimerEvent;
   private bombIcon!: Phaser.GameObjects.Image;
   private wallIcon!: Phaser.GameObjects.Image;
+  private textLayouts = new Map<Phaser.GameObjects.Text, () => void>();
 
   constructor() {
     super('UIScene');
   }
 
-  create(): void {
+  override create(): void {
     this.setupTexts();
 
     EventBus.on(Events.ScoreUpdated, this.handleScoreUpdated, this);
@@ -37,76 +38,99 @@ export class UIScene extends Phaser.Scene {
   }
 
   private setupTexts(): void {
+    this.textLayouts.clear();
+
     const style: Phaser.Types.GameObjects.Text.TextStyle = {
       fontFamily: '"Noto Sans SC", sans-serif',
-      fontSize: '20px',
+      fontSize: '16px',
       color: '#f8fafc',
     };
 
-    const panel = this.add
-      .rectangle(16, 16, 368, 184, 0x020617, 0.7)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, 0x1e293b);
+    const spacing = 6;
+    const { width, height } = this.scale;
 
-    const baseX = panel.x + 64;
-    let lineY = panel.y + 32;
-    const lineGap = 28;
+    const createBadge = (
+      x: number,
+      y: number,
+      texture: string,
+      tint: number,
+      initialText: string,
+      alignment: 'left' | 'center' | 'right',
+    ): { text: Phaser.GameObjects.Text; icon: Phaser.GameObjects.Image } => {
+      const container = this.add.container(x, y);
+      container.setDepth(30);
+      const icon = this.add
+        .image(0, 0, texture)
+        .setDisplaySize(20, 20)
+        .setTint(tint);
+      const label = this.add.text(0, 0, initialText, style);
+      container.add([icon, label]);
 
-    const makeIcon = (texture: string, tint: number) =>
-      this.add
-        .image(panel.x + 32, lineY, texture)
-        .setDisplaySize(28, 28)
-        .setTint(tint)
-        .setOrigin(0.5);
+      const applyLayout = () => {
+        const iconWidth = icon.displayWidth;
+        const textWidth = label.displayWidth;
+        switch (alignment) {
+          case 'left':
+            icon.setOrigin(0, 0.5);
+            icon.setPosition(0, 0);
+            label.setOrigin(0, 0.5);
+            label.setPosition(iconWidth + spacing, 0);
+            break;
+          case 'right':
+            icon.setOrigin(1, 0.5);
+            icon.setPosition(0, 0);
+            label.setOrigin(1, 0.5);
+            label.setPosition(-iconWidth - spacing, 0);
+            break;
+          default: {
+            const totalWidth = iconWidth + spacing + textWidth;
+            icon.setOrigin(0.5, 0.5);
+            label.setOrigin(0.5, 0.5);
+            icon.setPosition(-totalWidth / 2 + iconWidth / 2, 0);
+            label.setPosition(icon.x + iconWidth / 2 + spacing + textWidth / 2, 0);
+            break;
+          }
+        }
+      };
 
-    makeIcon(ICON_TEXTURE_KEYS.target, 0x38bdf8);
-    this.scoreText = this.add.text(baseX, lineY, 'Score: 0', style).setOrigin(0, 0.5);
-    lineY += lineGap;
+      this.textLayouts.set(label, applyLayout);
+      applyLayout();
+      return { text: label, icon };
+    };
 
-    makeIcon(ICON_TEXTURE_KEYS.arrow, 0xfacc15);
-    this.comboText = this.add.text(baseX, lineY, 'Combo: 0', style).setOrigin(0, 0.5);
-    lineY += lineGap;
+    this.scoreText = createBadge(18, 26, ICON_TEXTURE_KEYS.target, 0x38bdf8, 'Score: 0', 'left').text;
+    this.comboText = createBadge(width - 18, 26, ICON_TEXTURE_KEYS.arrow, 0xfacc15, 'Combo: 0', 'right').text;
+    this.enemyText = createBadge(width / 2, 26, ICON_TEXTURE_KEYS.enemy, 0xf87171, 'Enemies: 0', 'center').text;
 
-    makeIcon(ICON_TEXTURE_KEYS.ranger, 0xf8fafc);
-    this.accuracyText = this.add.text(baseX, lineY, 'Accuracy: 100%', style).setOrigin(0, 0.5);
-    lineY += lineGap;
+    this.accuracyText = createBadge(18, height - 132, ICON_TEXTURE_KEYS.ranger, 0xf8fafc, 'Accuracy: 100%', 'left').text;
 
-    this.add
-      .image(panel.x + 32, lineY, ICON_TEXTURE_KEYS.enemy)
-      .setDisplaySize(28, 28)
-      .setTint(0xf87171)
-      .setOrigin(0.5);
-    this.enemyText = this.add
-      .text(baseX, lineY, 'Enemies: 0', style)
-      .setOrigin(0, 0.5);
-    lineY += lineGap;
+    const bombBadge = createBadge(18, height - 92, ICON_TEXTURE_KEYS.bomb, 0xf97316, 'Bombs: 0', 'left');
+    this.bombIcon = bombBadge.icon;
+    this.bombText = bombBadge.text;
 
-    this.bombIcon = this.add
-      .image(panel.x + 32, lineY, ICON_TEXTURE_KEYS.bomb)
-      .setDisplaySize(28, 28)
-      .setTint(0xf97316)
-      .setOrigin(0.5);
-    this.bombText = this.add
-      .text(baseX, lineY, 'Bombs: 0', style)
-      .setOrigin(0, 0.5);
-    lineY += lineGap;
-
-    this.wallIcon = this.add
-      .image(panel.x + 32, lineY, ICON_TEXTURE_KEYS.wallEmblem)
-      .setDisplaySize(28, 28)
-      .setTint(0xcbd5f5)
-      .setOrigin(0.5);
-    this.wallText = this.add
-      .text(baseX, lineY, 'Wall Integrity: 0/0', style)
-      .setOrigin(0, 0.5);
+    const wallBadge = createBadge(
+      width - 18,
+      height - 92,
+      ICON_TEXTURE_KEYS.wallEmblem,
+      0xcbd5f5,
+      'Wall Integrity: 0/0',
+      'right',
+    );
+    this.wallIcon = wallBadge.icon;
+    this.wallText = wallBadge.text;
 
     this.messageText = this.add
       .text(this.scale.width / 2, this.scale.height - 44, '', {
         ...style,
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#e2e8f0',
       })
       .setOrigin(0.5);
+  }
+
+  private refreshBadgeLayout(text: Phaser.GameObjects.Text): void {
+    const layout = this.textLayouts.get(text);
+    layout?.();
   }
 
   private handleScoreUpdated(summary: ScoreSummary): void {
@@ -119,6 +143,10 @@ export class UIScene extends Phaser.Scene {
     this.enemyText.setText(
       `Enemies: ${summary.enemiesDefeated} (Typed ${summary.typedEliminations} / Bomb ${summary.bombEliminations})`,
     );
+    this.refreshBadgeLayout(this.scoreText);
+    this.refreshBadgeLayout(this.comboText);
+    this.refreshBadgeLayout(this.accuracyText);
+    this.refreshBadgeLayout(this.enemyText);
   }
 
   private showMessage(message: string): void {
@@ -138,6 +166,7 @@ export class UIScene extends Phaser.Scene {
       this.bombText.setText(`Bombs: ${status.charges}/${status.maxCharges}`);
       this.bombIcon.setTint(status.charges > 0 ? 0xf97316 : 0x64748b);
     }
+    this.refreshBadgeLayout(this.bombText);
   }
 
   private updateWallStatus(status: WallStatus): void {
@@ -153,6 +182,7 @@ export class UIScene extends Phaser.Scene {
       this.wallText.setColor('#f8fafc');
       this.wallIcon.setTint(0xcbd5f5);
     }
+    this.refreshBadgeLayout(this.wallText);
   }
 
   private handleBombActivated(): void {
