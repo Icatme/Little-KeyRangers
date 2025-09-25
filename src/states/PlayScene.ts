@@ -10,7 +10,7 @@ import { TrajectorySystem } from '../systems/TrajectorySystem';
 import { PlayerStats } from '../entities/PlayerStats';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
 import { Boss } from '../entities/Boss';
-import { Powerup, PowerupType } from '../entities/Powerup';
+import { Powerup, PowerupCollectTrigger, PowerupType } from '../entities/Powerup';
 import { getStageContext, getStages, isStageUnlocked, markStageCompleted } from '../core/StageManager';
 import { StageDefinition } from '../config/stages';
 
@@ -22,7 +22,7 @@ interface BombClearSummary {
   total: number;
 }
 
-type WordTarget = Enemy | Boss;
+type WordTarget = Enemy | Boss | Powerup;
 
 export class PlayScene extends Phaser.Scene {
   private typingSystem!: TypingSystem;
@@ -300,11 +300,22 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    if (nextTarget instanceof Enemy || nextTarget instanceof Boss) {
+    if (nextTarget instanceof Powerup) {
+      if (nextTarget.requiresTyping) {
+        nextTarget.resetTypingState();
+      }
+    } else {
       nextTarget.resetTypingState();
     }
 
     nextTarget.markAsTargeted(true);
+
+    if (nextTarget instanceof Powerup && !nextTarget.requiresTyping) {
+      this.typingSystem.setTarget('');
+      EventBus.emit(Events.WordChanged, '');
+      return;
+    }
+
     this.typingSystem.setTarget(nextTarget.word);
     EventBus.emit(Events.WordChanged, nextTarget.word);
   }
@@ -314,13 +325,19 @@ export class PlayScene extends Phaser.Scene {
       return this.boss;
     }
 
-    if (this.activeEnemies.length === 0) {
-      return undefined;
+    if (this.activeEnemies.length > 0) {
+      const sortedEnemies = [...this.activeEnemies];
+      sortedEnemies.sort((a, b) => a.x - b.x);
+      return sortedEnemies[0];
     }
 
-    const sorted = [...this.activeEnemies];
-    sorted.sort((a, b) => a.x - b.x);
-    return sorted[0];
+    const typingPowerups = this.powerups.filter((powerup) => powerup.isTypingActive());
+    if (typingPowerups.length > 0) {
+      typingPowerups.sort((a, b) => b.y - a.y);
+      return typingPowerups[0];
+    }
+
+    return undefined;
   }
 
   private handleTypingProgress(progress: TypingProgress): void {
@@ -338,6 +355,21 @@ export class PlayScene extends Phaser.Scene {
     }
 
     const target = this.currentTarget;
+
+    if (target instanceof Powerup) {
+      if (target.requiresTyping) {
+        target.updateTypingPreview(word, false);
+        target.setProgress(word.length);
+        target.markAsTargeted(false);
+        this.typingSystem.setTarget('');
+        EventBus.emit(Events.WordChanged, '');
+        this.currentTarget = undefined;
+        target.completeByTyping();
+        this.refreshTargetSelection();
+      }
+      return;
+    }
+
     this.scoreSystem.registerSuccess(word.length);
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
     target.updateTypingPreview(word, false);
@@ -353,6 +385,10 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private handleTypingMistake(): void {
+    if (this.currentTarget instanceof Powerup && this.currentTarget.requiresTyping) {
+      EventBus.emit(Events.DisplayMessage, '补给输入错误，请重新输入');
+      return;
+    }
     this.scoreSystem.registerMistake();
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
     EventBus.emit(Events.DisplayMessage, '输入错误，连击已重置');
@@ -449,19 +485,34 @@ export class PlayScene extends Phaser.Scene {
     const randomX = this.breachX + laneWidth * Phaser.Math.FloatBetween(0.2, 0.9);
     const spawnX = Phaser.Math.Clamp(sourceX ?? randomX, this.breachX + 48, this.scale.width - 48);
     const type = this.choosePowerupType();
+    const requiresTyping = type === 'bomb';
     const powerup = new Powerup(this, spawnX, {
       type,
       fallSpeed: Phaser.Math.Between(120, 170),
       groundY: this.scale.height - 88,
+      requiresTyping,
+      word: requiresTyping ? this.pickPowerupWord() : undefined,
     });
     this.powerups.push(powerup);
 
-    powerup.once('collected', (powerupType: PowerupType) => {
-      this.handlePowerupCollected(powerup, powerupType);
+    powerup.once('collected', ({ type: powerupType, trigger }: { type: PowerupType; trigger: PowerupCollectTrigger }) => {
+      this.handlePowerupCollected(powerup, powerupType, trigger);
+    });
+    powerup.once('missed', (powerupType: PowerupType) => {
+      this.handlePowerupMissed(powerup, powerupType);
     });
     powerup.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.powerups = this.powerups.filter((entry) => entry !== powerup);
     });
+  }
+
+  private pickPowerupWord(): string {
+    const pool = this.stageDefinition.wordPool;
+    if (pool.length === 0) {
+      return 'supply';
+    }
+    const index = Phaser.Math.Between(0, pool.length - 1);
+    return pool[index];
   }
 
   private choosePowerupType(): PowerupType {
@@ -477,14 +528,27 @@ export class PlayScene extends Phaser.Scene {
     return Math.random() < 0.5 ? 'bomb' : 'repair';
   }
 
-  private handlePowerupCollected(powerup: Powerup, type: PowerupType): void {
+  private handlePowerupCollected(
+    powerup: Powerup,
+    type: PowerupType,
+    trigger: PowerupCollectTrigger,
+  ): void {
+    if (this.currentTarget === powerup) {
+      this.currentTarget = undefined;
+    }
+
     if (type === 'bomb') {
+      if (trigger !== 'typed') {
+        this.refreshTargetSelection();
+        return;
+      }
       const gained = this.bombSystem.addCharge(1);
       if (gained) {
-        EventBus.emit(Events.DisplayMessage, '补给落入城内，炸弹+1！');
+        EventBus.emit(Events.DisplayMessage, '补给字码完成，炸弹+1！');
       } else {
         EventBus.emit(Events.DisplayMessage, '炸弹仓已满，补给暂存。');
       }
+      this.refreshTargetSelection();
       return;
     }
 
@@ -499,6 +563,21 @@ export class PlayScene extends Phaser.Scene {
     } else {
       EventBus.emit(Events.DisplayMessage, '城墙完好，备用材料入库。');
     }
+    this.refreshTargetSelection();
+  }
+
+  private handlePowerupMissed(powerup: Powerup, type: PowerupType): void {
+    if (this.currentTarget === powerup) {
+      this.currentTarget = undefined;
+    }
+
+    if (type === 'bomb') {
+      EventBus.emit(Events.DisplayMessage, '补给坠毁，未能补充炸弹');
+    } else {
+      EventBus.emit(Events.DisplayMessage, '维修物资散落，未能修复城墙');
+    }
+
+    this.refreshTargetSelection();
   }
 
   private removeEnemy(enemy: Enemy): void {
