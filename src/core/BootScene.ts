@@ -8,7 +8,7 @@ export class BootScene extends Phaser.Scene {
     super('BootScene');
   }
 
-  preload(): void {
+  override preload(): void {
     this.cameras.main.setBackgroundColor('#020617');
     const { width, height } = this.scale;
 
@@ -25,7 +25,7 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  async create(): Promise<void> {
+  override async create(): Promise<void> {
     await loadIconTextures(this, (loaded, total) => {
       const progress = Math.round((loaded / total) * 100);
       this.loadingText.setText(`正在装配游侠装备... ${progress}%`);

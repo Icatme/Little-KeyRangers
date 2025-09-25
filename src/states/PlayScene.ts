@@ -57,7 +57,7 @@ export class PlayScene extends Phaser.Scene {
     super('PlayScene');
   }
 
-  init(data: PlaySceneData): void {
+  override init(data: PlaySceneData): void {
     const context = getStageContext(data?.stageId);
     this.stageDefinition = context.stage;
     this.stageConfig = this.stageDefinition.stageConfig;
@@ -65,7 +65,7 @@ export class PlayScene extends Phaser.Scene {
     this.dropRate = this.stageDefinition.dropRate;
   }
 
-  create(): void {
+  override create(): void {
     this.stageFinished = false;
     this.defeatedCount = 0;
     this.activeEnemies = [];
@@ -121,7 +121,7 @@ export class PlayScene extends Phaser.Scene {
     });
   }
 
-  update(_: number, delta: number): void {
+  override update(_: number, delta: number): void {
     if (this.stageFinished) {
       return;
     }

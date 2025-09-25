@@ -21,7 +21,7 @@ export class MenuScene extends Phaser.Scene {
     super('MenuScene');
   }
 
-  create(): void {
+  override create(): void {
     const { width, height } = this.scale;
     this.selectedStageIndex = getCurrentStageIndex();
     this.cameras.main.setBackgroundColor('#020617');
