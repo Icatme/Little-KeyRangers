@@ -20,7 +20,7 @@ export class ResultScene extends Phaser.Scene {
     super('ResultScene');
   }
 
-  create(data: ResultSceneData): void {
+  override create(data: ResultSceneData): void {
     this.data = data;
 
     const { width, height } = this.scale;

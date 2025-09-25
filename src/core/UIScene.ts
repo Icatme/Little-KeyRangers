@@ -18,7 +18,7 @@ export class UIScene extends Phaser.Scene {
     super('UIScene');
   }
 
-  create(): void {
+  override create(): void {
     this.setupTexts();
 
     EventBus.on(Events.ScoreUpdated, this.handleScoreUpdated, this);
