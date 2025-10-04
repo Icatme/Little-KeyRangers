@@ -48,6 +48,8 @@ export class PlayScene extends Phaser.Scene {
 
   private powerups: Powerup[] = [];
 
+  private pauseMenuOpen = false;
+
   private ranger!: Phaser.GameObjects.Image;
   private wall!: Phaser.GameObjects.Image;
   private stageBanner!: Phaser.GameObjects.Text;
@@ -75,6 +77,7 @@ export class PlayScene extends Phaser.Scene {
     this.bossDefeated = false;
     this.powerups = [];
 
+    this.pauseMenuOpen = false;
     this.scoreSystem = new ScoreSystem();
     this.playerStats = new PlayerStats(this.stageConfig.wall.maxHp);
     this.bombSystem = new BombSystem(this.stageConfig.bombs);
@@ -107,8 +110,10 @@ export class PlayScene extends Phaser.Scene {
       max: this.playerStats.maxWallHealth,
     });
 
-    this.input.keyboard?.on('keydown-ESC', this.returnToMenu, this);
+    this.input.keyboard?.on('keydown-ESC', this.handlePauseRequest, this);
     this.input.keyboard?.on('keydown-SPACE', this.tryActivateBomb, this);
+
+    this.events.on(Phaser.Scenes.Events.RESUME, this.handleResume, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.typingSystem.off('progress', this.handleTypingProgress, this);
@@ -116,8 +121,9 @@ export class PlayScene extends Phaser.Scene {
       this.typingSystem.off('mistake', this.handleTypingMistake, this);
       this.typingSystem.destroy();
       this.enemySpawner.off('spawn', this.handleEnemySpawn, this);
-      this.input.keyboard?.off('keydown-ESC', this.returnToMenu, this);
+      this.input.keyboard?.off('keydown-ESC', this.handlePauseRequest, this);
       this.input.keyboard?.off('keydown-SPACE', this.tryActivateBomb, this);
+      this.events.off(Phaser.Scenes.Events.RESUME, this.handleResume, this);
     });
   }
 
@@ -472,6 +478,35 @@ export class PlayScene extends Phaser.Scene {
     EventBus.emit(Events.DisplayMessage, `炸弹清除了 ${summary.total} 名敌人！`);
   }
 
+  private handlePauseRequest(event: KeyboardEvent): void {
+    event.preventDefault();
+    if (this.stageFinished || this.pauseMenuOpen) {
+      return;
+    }
+    this.openPauseMenu();
+  }
+
+  private openPauseMenu(): void {
+    if (this.stageFinished || this.pauseMenuOpen || this.scene.isActive('PauseScene')) {
+      return;
+    }
+
+    this.pauseMenuOpen = true;
+    this.scene.launch('PauseScene', {
+      stageId: this.stageDefinition.id,
+      stageName: this.stageDefinition.name,
+    });
+    if (this.scene.isActive('UIScene')) {
+      this.scene.pause('UIScene');
+    }
+    this.scene.pause();
+  }
+
+  private handleResume(): void {
+    this.pauseMenuOpen = false;
+    EventBus.emit(Events.DisplayMessage, '战斗继续！');
+  }
+
   private maybeSpawnPowerup(sourceX?: number): void {
     if (this.stageFinished || this.dropRate <= 0) {
       return;
@@ -694,6 +729,8 @@ export class PlayScene extends Phaser.Scene {
       markStageCompleted(this.stageIndex);
     }
 
+    this.pauseMenuOpen = false;
+
     const stageList = getStages();
     const hasNextStage = this.stageIndex < stageList.length - 1;
     const nextStageUnlocked = hasNextStage && isStageUnlocked(this.stageIndex + 1);
@@ -712,13 +749,5 @@ export class PlayScene extends Phaser.Scene {
         nextStageUnlocked,
       });
     });
-  }
-
-  private returnToMenu(): void {
-    this.stageFinished = true;
-    this.enemySpawner.stop();
-    this.boss?.stop();
-    this.scene.stop('UIScene');
-    this.scene.start('MenuScene');
   }
 }

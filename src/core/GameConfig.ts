@@ -4,6 +4,7 @@ import { UIScene } from './UIScene';
 import { MenuScene } from '../states/MenuScene';
 import { PlayScene } from '../states/PlayScene';
 import { ResultScene } from '../states/ResultScene';
+import { PauseScene } from '../states/PauseScene';
 
 export function createGameConfig(): Phaser.Types.Core.GameConfig {
   const baseHeight = 540;
@@ -19,7 +20,7 @@ export function createGameConfig(): Phaser.Types.Core.GameConfig {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MenuScene, PlayScene, UIScene, ResultScene],
+    scene: [BootScene, MenuScene, PlayScene, PauseScene, UIScene, ResultScene],
     physics: {
       default: 'arcade',
       arcade: {

@@ -52,8 +52,7 @@ export class Powerup extends Phaser.GameObjects.Container {
 
     this.badge = scene.add
       .rectangle(0, 0, 52, 52, 0x0f172a, 0.8)
-      .setStrokeStyle(2, this.baseTint)
-      .setRadius(12);
+      .setStrokeStyle(2, this.baseTint);
 
     const texture = this.type === 'bomb' ? ICON_TEXTURE_KEYS.bomb : ICON_TEXTURE_KEYS.wallEmblem;
     this.icon = scene.add.image(0, 0, texture).setDisplaySize(32, 32).setTint(this.baseTint);
