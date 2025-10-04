@@ -86,7 +86,7 @@ export class Powerup extends Phaser.GameObjects.Container {
     } else {
       const labelText = this.type === 'bomb' ? '补给' : '维修';
       this.label = scene.add
-        .text(0, 42, labelText, {
+        .text(0, 42, this.type === 'bomb' ? 'Bomb' : 'Repair', {
           fontFamily: '"Noto Sans SC", sans-serif',
           fontSize: '18px',
           color: '#e2e8f0',

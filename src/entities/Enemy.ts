@@ -5,12 +5,16 @@ export type EnemyPath = 'straight' | 'zigzag' | 'drift';
 
 export type EnemyEliminationCause = 'arrow' | 'bomb';
 
+export type EnemyType = 'fast' | 'heavy' | 'normal';
+
 interface EnemyOptions {
   word: string;
   path: EnemyPath;
   speed: number;
   breachX: number;
   dangerZone: number;
+  type: EnemyType;
+  hp: number;
 }
 
 type EnemyState = 'spawning' | 'descending' | 'eliminating' | 'breached' | 'inactive';
@@ -18,6 +22,7 @@ type EnemyState = 'spawning' | 'descending' | 'eliminating' | 'breached' | 'inac
 export class Enemy extends Phaser.GameObjects.Container {
   private currentWord: string;
   readonly path: EnemyPath;
+  readonly enemyType: EnemyType;
 
   private readonly sprite: Phaser.GameObjects.Image;
   private readonly shadow: Phaser.GameObjects.Ellipse;
@@ -29,6 +34,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private readonly speed: number;
   private readonly breachX: number;
   private readonly dangerZone: number;
+  private hp: number;
+  private readonly maxHp: number;
 
   private readonly panelWidth: number;
   private readonly panelHeight: number = 46;
@@ -52,6 +59,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.speed = options.speed;
     this.breachX = options.breachX;
     this.dangerZone = options.dangerZone;
+    this.enemyType = options.type;
+    this.hp = Math.max(1, Math.floor(options.hp));
+    this.maxHp = this.hp;
 
     this.startX = x;
     this.startY = y;
@@ -61,10 +71,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.panelWidth = Math.max(140, this.currentWord.length * 28);
     this.textLeft = 12 - this.panelWidth / 2 + 10;
 
+    const baseSize = this.enemyType === 'heavy' ? 104 : this.enemyType === 'fast' ? 84 : 92;
     this.sprite = scene.add
       .image(-12, -46, ICON_TEXTURE_KEYS.enemy)
-      .setDisplaySize(92, 92)
-      .setDepth(1);
+      .setDisplaySize(baseSize, baseSize)
+      .setDepth(1)
+      .setTint(this.enemyType === 'fast' ? 0xf87171 : this.enemyType === 'heavy' ? 0x60a5fa : 0xf8fafc);
 
     this.shadow = scene.add
       .ellipse(10, 58, this.panelWidth * 0.48, 30, 0x000000, 0.28)
@@ -216,8 +228,6 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (this.state !== 'descending') {
       return;
     }
-    this.state = 'eliminating';
-
     const bodyWidth = this.displayWidth || this.width || 180;
     const bodyHeight = this.displayHeight || this.height || 160;
     const impact = this.scene.add
@@ -235,17 +245,43 @@ export class Enemy extends Phaser.GameObjects.Container {
       onComplete: () => impact.destroy(),
     });
 
+    // Apply damage
+    this.hp = Math.max(0, this.hp - 1);
+
+    if (this.hp <= 0) {
+      // Eliminate
+      this.state = 'eliminating';
+      this.scene.tweens.add({
+        targets: this,
+        x: this.x + Math.min(200, bodyWidth * 0.7),
+        y: this.y - bodyHeight * 0.18,
+        alpha: 0,
+        duration: 320,
+        ease: Phaser.Math.Easing.Cubic.In,
+        onComplete: () => {
+          this.state = 'inactive';
+          this.emit('eliminated', { cause: 'arrow' as EnemyEliminationCause });
+          this.destroy();
+        },
+      });
+      return;
+    }
+
+    // Hit reaction without elimination (knockback + flash)
+    const knockback = this.enemyType === 'heavy' ? 32 : 48;
+    const lift = this.enemyType === 'heavy' ? 6 : 10;
+    this.sprite.setTint(0xfef3c7);
+    this.wordPanel.setStrokeStyle(3, 0xfacc15);
     this.scene.tweens.add({
       targets: this,
-      x: this.x + Math.min(200, bodyWidth * 0.7),
-      y: this.y - bodyHeight * 0.18,
-      alpha: 0,
-      duration: 320,
-      ease: Phaser.Math.Easing.Cubic.In,
+      x: this.x + knockback,
+      y: this.y - lift,
+      duration: 160,
+      yoyo: true,
+      ease: Phaser.Math.Easing.Cubic.Out,
       onComplete: () => {
-        this.state = 'inactive';
-        this.emit('eliminated', { cause: 'arrow' as EnemyEliminationCause });
-        this.destroy();
+        this.sprite.setTint(this.enemyType === 'fast' ? 0xf87171 : this.enemyType === 'heavy' ? 0x60a5fa : 0xf8fafc);
+        this.wordPanel.setStrokeStyle(2, 0x475569);
       },
     });
   }

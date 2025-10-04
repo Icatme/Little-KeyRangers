@@ -93,6 +93,10 @@ export class PlayScene extends Phaser.Scene {
     this.typingSystem.on('progress', this.handleTypingProgress, this);
     this.typingSystem.on('complete', this.handleTypingComplete, this);
     this.typingSystem.on('mistake', this.handleTypingMistake, this);
+    // New: dynamic targeting hooks
+    this.typingSystem.on('freeType', this.handleFreeType, this);
+    this.typingSystem.on('mismatch', this.handleTypingMismatch, this);
+    this.typingSystem.on('clear', this.handleTypingClear, this);
 
     this.enemySpawner = new EnemySpawner(
       this,
@@ -119,6 +123,9 @@ export class PlayScene extends Phaser.Scene {
       this.typingSystem.off('progress', this.handleTypingProgress, this);
       this.typingSystem.off('complete', this.handleTypingComplete, this);
       this.typingSystem.off('mistake', this.handleTypingMistake, this);
+      this.typingSystem.off('freeType', this.handleFreeType, this);
+      this.typingSystem.off('mismatch', this.handleTypingMismatch, this);
+      this.typingSystem.off('clear', this.handleTypingClear, this);
       this.typingSystem.destroy();
       this.enemySpawner.off('spawn', this.handleEnemySpawn, this);
       this.input.keyboard?.off('keydown-ESC', this.handlePauseRequest, this);
@@ -351,8 +358,131 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    this.currentTarget.updateTypingPreview(progress.input, progress.isMistake);
-    this.currentTarget.setProgress(progress.input.length);
+    // Update all targets with identical words simultaneously
+    const targets = this.getSameWordTargets(this.currentTarget);
+    targets.forEach((t) => {
+      t.updateTypingPreview(progress.input, progress.isMistake);
+      t.setProgress(progress.input.length);
+    });
+  }
+
+  // When there is no input yet, first letter can match any word with the same first letter
+  private handleFreeType = (initialInput: string): void => {
+    const prefix = (initialInput || '').toLowerCase();
+    if (!prefix) {
+      return;
+    }
+
+    // If current target still matches, keep it
+    if (this.currentTarget && this.currentTarget.word.toLowerCase().startsWith(prefix)) {
+      return;
+    }
+
+    const candidate = this.pickMatchingTarget(prefix);
+    if (!candidate) {
+      return;
+    }
+
+    if (this.currentTarget && this.currentTarget !== candidate) {
+      this.currentTarget.markAsTargeted(false);
+      // Clear any partial preview on previous target
+      this.currentTarget.resetTypingState();
+    }
+
+    this.currentTarget = candidate;
+    this.currentTarget.markAsTargeted(true);
+    this.typingSystem.setTargetWithInput(candidate.word, prefix);
+    EventBus.emit(Events.WordChanged, candidate.word);
+  };
+
+  // When current target mismatches, try to route input to a target that still matches
+  private handleTypingMismatch = (payload: any): void => {
+    const prefix = (typeof payload === 'object' && payload)
+      ? String(payload.nextInput || '').toLowerCase()
+      : String(payload || '').toLowerCase();
+    const currentLen = (typeof payload === 'object' && payload && typeof payload.currentLength === 'number')
+      ? payload.currentLength as number
+      : undefined;
+    if (!prefix) {
+      return;
+    }
+
+    // Rule: if already have >1 correct characters on current target, do not switch
+    // Do not auto-switch once player has started a word (>=1 typed)
+    if (typeof currentLen === 'number' && currentLen > 0) {
+      return;
+    }
+
+    const candidate = this.pickMatchingTarget(prefix, this.currentTarget);
+    if (!candidate) {
+      return;
+    }
+
+    if (this.currentTarget && this.currentTarget !== candidate) {
+      this.currentTarget.markAsTargeted(false);
+      this.currentTarget.resetTypingState();
+    }
+
+    this.currentTarget = candidate;
+    this.currentTarget.markAsTargeted(true);
+    this.typingSystem.setTargetWithInput(candidate.word, prefix);
+    EventBus.emit(Events.WordChanged, candidate.word);
+  };
+
+  private handleTypingClear = (): void => {
+    // Clear previews/progress for all potential targets without changing selection
+    if (this.boss && !this.bossDefeated) {
+      this.boss.resetTypingState();
+    }
+    this.activeEnemies.forEach((e) => e.resetTypingState());
+    this.powerups.filter((p) => p.isTypingActive()).forEach((p) => p.resetTypingState());
+  };
+
+  private getSameWordTargets(base: WordTarget): WordTarget[] {
+    const word = base.word.toLowerCase();
+    if (base instanceof Boss) {
+      return [base];
+    }
+    if (base instanceof Powerup) {
+      if (!base.requiresTyping) {
+        return [base];
+      }
+      const matches = this.powerups.filter((p) => p.isTypingActive() && p.word.toLowerCase() === word);
+      return matches.length > 0 ? matches : [base];
+    }
+    // Enemy: include all active enemies with identical word
+    const matches = this.activeEnemies.filter((e) => e.word.toLowerCase() === word);
+    return matches.length > 0 ? matches : [base];
+  }
+
+  private pickMatchingTarget(prefix: string, exclude?: WordTarget): WordTarget | undefined {
+    const normalized = prefix.toLowerCase();
+
+    // Collect candidates: enemies, boss, and typed powerups
+    const enemyMatches = this.activeEnemies
+      .filter((e) => (!exclude || e !== exclude) && e.word.toLowerCase().startsWith(normalized))
+      .sort((a, b) => a.x - b.x); // leftmost first
+
+    const bossMatch = this.boss && !this.bossDefeated && (!exclude || this.boss !== exclude)
+      && this.boss.word.toLowerCase().startsWith(normalized)
+      ? this.boss
+      : undefined;
+
+    const typingPowerupMatches = this.powerups
+      .filter((p) => p.isTypingActive() && (!exclude || p !== exclude) && p.word.toLowerCase().startsWith(normalized))
+      .sort((a, b) => b.y - a.y); // closest to ground first
+
+    // Priority: boss > enemies (leftmost) > typed powerups (closest to ground)
+    if (bossMatch) {
+      return bossMatch;
+    }
+    if (enemyMatches.length > 0) {
+      return enemyMatches[0];
+    }
+    if (typingPowerupMatches.length > 0) {
+      return typingPowerupMatches[0];
+    }
+    return undefined;
   }
 
   private handleTypingComplete(word: string): void {
@@ -378,8 +508,13 @@ export class PlayScene extends Phaser.Scene {
 
     this.scoreSystem.registerSuccess(word.length);
     this.bombSystem.registerCombo(this.scoreSystem.getCombo());
-    target.updateTypingPreview(word, false);
-    target.setProgress(word.length);
+
+    // Complete all identical-word targets together
+    const targets = this.getSameWordTargets(target);
+    targets.forEach((t) => {
+      t.updateTypingPreview(word, false);
+      t.setProgress(word.length);
+    });
     this.typingSystem.setTarget('');
 
     if (target instanceof Boss) {
@@ -387,7 +522,12 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    this.launchArrow(target);
+    // Eliminate all identical-word enemies
+    const enemyTargets = targets.filter((t): t is Enemy => t instanceof Enemy);
+    if (enemyTargets.length > 0) {
+      // Keep currentTarget targeted until first arrow launches
+      enemyTargets.forEach((e) => this.launchArrow(e));
+    }
   }
 
   private handleTypingMistake(): void {
@@ -523,7 +663,8 @@ export class PlayScene extends Phaser.Scene {
     const requiresTyping = type === 'bomb';
     const powerup = new Powerup(this, spawnX, {
       type,
-      fallSpeed: Phaser.Math.Between(120, 170),
+      // Reduce drop speed by 20%
+      fallSpeed: Math.round(Phaser.Math.Between(120, 170) * 0.8),
       groundY: this.scale.height - 88,
       requiresTyping,
       word: requiresTyping ? this.pickPowerupWord() : undefined,
@@ -628,7 +769,8 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.bossSpawned && this.defeatedCount >= this.stageConfig.spawn.total && this.activeEnemies.length === 0) {
+    // Spawn boss when all enemies of the wave have been spawned and cleared from the field
+    if (!this.bossSpawned && this.enemySpawner.isFinished() && this.activeEnemies.length === 0) {
       this.spawnBoss();
       return;
     }
@@ -637,7 +779,8 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    if (this.defeatedCount >= this.stageConfig.spawn.total && this.activeEnemies.length === 0 && this.bossDefeated) {
+    // Finish round once boss is defeated and no enemies remain
+    if (this.activeEnemies.length === 0 && this.bossDefeated) {
       this.finishRound(true);
     }
   }

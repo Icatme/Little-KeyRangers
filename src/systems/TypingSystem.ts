@@ -32,18 +32,39 @@ export class TypingSystem extends Phaser.Events.EventEmitter {
     this.emit('progress', { input: this.inputBuffer, isMistake: false });
   }
 
-  private handleKeyDown(event: KeyboardEvent): void {
-    if (event.key === 'Backspace') {
-      event.preventDefault();
-      if (this.inputBuffer.length > 0) {
-        this.inputBuffer = this.inputBuffer.slice(0, -1);
-      }
+  // Set a new target and seed input buffer with a prefix that must match the word
+  setTargetWithInput(word: string, input: string): void {
+    this.targetWord = word || '';
+    const normalizedTarget = (this.targetWord || '').toLowerCase();
+    const normalizedInput = (input || '').toLowerCase();
+
+    if (!this.targetWord || !normalizedTarget.startsWith(normalizedInput)) {
+      // Fallback: clear buffer if the provided input does not match the target word
+      this.inputBuffer = '';
       this.isMistake = false;
-      this.emit('progress', { input: this.inputBuffer, isMistake: this.isMistake });
+      this.emit('progress', { input: this.inputBuffer, isMistake: false });
       return;
     }
 
-    if (!this.targetWord) {
+    this.inputBuffer = normalizedInput;
+    this.isMistake = false;
+    this.emit('progress', { input: this.inputBuffer, isMistake: false });
+
+    if (this.inputBuffer.length === this.targetWord.length) {
+      const completedWord = this.targetWord;
+      this.emit('complete', completedWord);
+    }
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+      // Clear all input at once
+      this.inputBuffer = '';
+      this.isMistake = false;
+      this.emit('progress', { input: this.inputBuffer, isMistake: this.isMistake });
+      // Notify scene to clear all typing previews if needed
+      this.emit('clear');
       return;
     }
 
@@ -63,7 +84,23 @@ export class TypingSystem extends Phaser.Events.EventEmitter {
     }
 
     event.preventDefault();
-    const nextInput = this.inputBuffer + event.key.toLowerCase();
+    const char = event.key.toLowerCase();
+
+    // When there is no input yet, allow scene to choose a target among all candidates
+    if (this.inputBuffer.length === 0) {
+      const initialInput = char;
+      this.emit('freeType', initialInput);
+      // If the scene accepted and seeded the input, it will have updated the buffer
+      if (this.inputBuffer.length > 0) {
+        return;
+      }
+    }
+
+    if (!this.targetWord) {
+      return;
+    }
+
+    const nextInput = this.inputBuffer + char;
     const normalizedTarget = this.targetWord.toLowerCase();
 
     if (normalizedTarget.startsWith(nextInput)) {
@@ -75,6 +112,13 @@ export class TypingSystem extends Phaser.Events.EventEmitter {
         const completedWord = this.targetWord;
         this.emit('complete', completedWord);
       }
+      return;
+    }
+
+    // Offer the scene a chance to re-target to another word matching the new input
+    this.emit('mismatch', { nextInput, currentLength: this.inputBuffer.length });
+    // If the scene re-targeted and seeded the buffer, it will equal nextInput now
+    if (this.inputBuffer === nextInput) {
       return;
     }
 
