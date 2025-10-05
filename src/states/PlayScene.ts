@@ -92,7 +92,12 @@ export class PlayScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#020617');
     // Add castle background image (covers whole screen)
     const { width, height } = this.scale;
-    const bg = this.add.image(width / 2, height / 2, 'bg-castle').setDepth(-10).setScrollFactor(0);
+    // Anchor to left so castle remains visible; crop on the right if needed
+    const bg = this.add
+      .image(0, height / 2, 'bg-castle')
+      .setOrigin(0, 0.5)
+      .setDepth(-10)
+      .setScrollFactor(0);
     const tex = this.textures.get('bg-castle').getSourceImage() as HTMLImageElement | undefined;
     if (tex && (tex as any).width && (tex as any).height) {
       const sw = (tex as any).width as number;
