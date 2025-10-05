@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { UI_TEXT, createPanel, fadeInScene } from '../core/UIStyle';
 import { WordBankManager } from '../core/WordBankManager';
 
 export class WordBankScene extends Phaser.Scene {
@@ -9,7 +10,7 @@ export class WordBankScene extends Phaser.Scene {
 
   override create(): void {
     const { width, height } = this.scale;
-    this.cameras.main.setBackgroundColor('#020617');
+    fadeInScene(this, 220);
 
     this.add
       .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
@@ -17,21 +18,10 @@ export class WordBankScene extends Phaser.Scene {
       .setAlpha(0.14)
       .setDepth(-2);
 
-    const banner = this.add
-      .rectangle(width / 2, height * 0.13, width * 0.82, 74, 0x0f172a, 0.85)
-      .setStrokeStyle(2, 0x1e293b);
+    const banner = createPanel(this, width / 2, height * 0.13, width * 0.82, 74, { alpha: 0.85 });
+    this.add.text(banner.x, banner.y, '词库管理与编辑', { ...UI_TEXT.label, fontSize: '28px' }).setOrigin(0.5);
 
-    this.add
-      .text(banner.x, banner.y, '词库管理与编辑', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '28px',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0.5);
-
-    const panel = this.add
-      .rectangle(width / 2, height * 0.57, width * 0.86, height * 0.75, 0x0b1220, 0.8)
-      .setStrokeStyle(2, 0x1e293b);
+    const panel = createPanel(this, width / 2, height * 0.57, width * 0.86, height * 0.75, { alpha: 0.82 });
 
     // Build DOM UI
     const host = document.createElement('div');
@@ -229,4 +219,3 @@ export class WordBankScene extends Phaser.Scene {
     dom.setOrigin(0.5);
   }
 }
-

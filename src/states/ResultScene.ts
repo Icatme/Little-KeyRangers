@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ScoreSummary } from '../core/EventBus';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { UI_TEXT, createButton, createPanel, fadeInScene, fadeOutScene } from '../core/UIStyle';
 import { getStages, setCurrentStageIndex } from '../core/StageManager';
 
 interface ResultSceneData {
@@ -31,7 +32,7 @@ export class ResultScene extends Phaser.Scene {
     const title = data.success ? '守城成功' : '守城失败';
     const titleColor = data.success ? '#34d399' : '#f87171';
 
-    this.cameras.main.setBackgroundColor('#020617');
+    fadeInScene(this, 220);
 
     this.add
       .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
@@ -45,25 +46,11 @@ export class ResultScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setAlpha(0.95);
 
-    this.add
-      .text(width / 2, height * 0.1, title, {
-        fontFamily: '"Cinzel", "Noto Serif SC", serif',
-        fontSize: '52px',
-        color: titleColor,
-      })
-      .setOrigin(0.5);
+    this.add.text(width / 2, height * 0.1, title, { ...UI_TEXT.title, color: titleColor }).setOrigin(0.5);
 
-    this.add
-      .text(width / 2, height * 0.18, `关卡：${data.stageName}`, {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '22px',
-        color: '#cbd5f5',
-      })
-      .setOrigin(0.5);
+    this.add.text(width / 2, height * 0.18, `关卡：${data.stageName}`, { ...UI_TEXT.subtitle, fontSize: '22px', color: '#cbd5f5' }).setOrigin(0.5);
 
-    const panel = this.add
-      .rectangle(width / 2, height * 0.58, width * 0.68, 260, 0x0b1220, 0.76)
-      .setStrokeStyle(2, 0x1e293b);
+    const panel = createPanel(this, width / 2, height * 0.56, width * 0.68, 260, { alpha: 0.82 });
 
     const metrics: Array<{ icon: string; tint: number; text: string }> = [
       { icon: ICON_TEXTURE_KEYS.target, tint: 0x38bdf8, text: `得分：${data.summary.score}` },
@@ -86,36 +73,21 @@ export class ResultScene extends Phaser.Scene {
         .setDisplaySize(32, 32)
         .setTint(metric.tint)
         .setOrigin(0.5);
-      this.add
-        .text(panel.x - panel.width / 2 + 90, lineY, metric.text, {
-          fontFamily: '"Noto Sans SC", sans-serif',
-          fontSize: '20px',
-          color: '#e2e8f0',
-        })
-        .setOrigin(0, 0.5);
+      this.add.text(panel.x - panel.width / 2 + 90, lineY, metric.text, { ...UI_TEXT.body, fontSize: '20px' }).setOrigin(0, 0.5);
     });
 
-    const instructions: string[] = ['按空格重试当前关卡', '按 M 返回主菜单'];
+    const btnY = height * 0.86;
+    const btnGap = 220;
+    const buttons: Phaser.GameObjects.Container[] = [];
+    const retryBtn = createButton(this, width / 2 - btnGap / 2, btnY, 180, '重试本关', () => this.restartGame());
+    buttons.push(retryBtn);
     if (data.success && data.hasNextStage && data.nextStageUnlocked) {
-      instructions.push('按 N 前往下一关');
+      buttons.push(createButton(this, width / 2 + btnGap / 2, btnY, 180, '下一关', () => this.startNextStage()));
+    } else {
+      buttons.push(createButton(this, width / 2 + btnGap / 2, btnY, 180, '主菜单', () => this.backToMenu()));
     }
 
-    const actionHint = this.add
-      .text(width / 2, height * 0.88, instructions.join(' / '), {
-        fontFamily: 'sans-serif',
-        fontSize: '20px',
-        color: '#facc15',
-      })
-      .setOrigin(0.5);
-
-    this.tweens.add({
-      targets: actionHint,
-      alpha: { from: 0.4, to: 1 },
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-    });
-
+    // Keyboard shortcuts remain
     this.input.keyboard?.once('keydown-SPACE', this.restartGame, this);
     this.input.keyboard?.once('keydown-M', this.backToMenu, this);
     if (data.success && data.hasNextStage && data.nextStageUnlocked) {
@@ -126,7 +98,7 @@ export class ResultScene extends Phaser.Scene {
 
   private restartGame(): void {
     setCurrentStageIndex(this.data.stageIndex);
-    this.scene.start('PlayScene', { stageId: this.data.stageId });
+    fadeOutScene(this, 220, () => this.scene.start('PlayScene', { stageId: this.data.stageId }));
   }
 
   private startNextStage(): void {
@@ -135,10 +107,10 @@ export class ResultScene extends Phaser.Scene {
     }
     const nextStage = getStages()[this.data.stageIndex + 1];
     setCurrentStageIndex(this.data.stageIndex + 1);
-    this.scene.start('PlayScene', { stageId: nextStage.id });
+    fadeOutScene(this, 220, () => this.scene.start('PlayScene', { stageId: nextStage.id }));
   }
 
   private backToMenu(): void {
-    this.scene.start('MenuScene');
+    fadeOutScene(this, 220, () => this.scene.start('MenuScene'));
   }
 }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BombStatus, EventBus, Events, ScoreSummary, WallStatus } from './EventBus';
 import { ICON_TEXTURE_KEYS } from './IconTextureLoader';
+import { createBadge } from './UIStyle';
 
 export class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
@@ -40,92 +41,39 @@ export class UIScene extends Phaser.Scene {
   private setupTexts(): void {
     this.textLayouts.clear();
 
-    const style: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontFamily: '"Noto Sans SC", sans-serif',
-      fontSize: '16px',
-      color: '#f8fafc',
-    };
-
-    const spacing = 6;
     const { width, height } = this.scale;
 
-    const createBadge = (
-      x: number,
-      y: number,
-      texture: string,
-      tint: number,
-      initialText: string,
-      alignment: 'left' | 'center' | 'right',
-    ): { text: Phaser.GameObjects.Text; icon: Phaser.GameObjects.Image } => {
-      const container = this.add.container(x, y);
-      container.setDepth(30);
-      const icon = this.add
-        .image(0, 0, texture)
-        .setDisplaySize(20, 20)
-        .setTint(tint);
-      const label = this.add.text(0, 0, initialText, style);
-      container.add([icon, label]);
+    const b1 = createBadge(this, 18, 26, ICON_TEXTURE_KEYS.target, 0x38bdf8, '积分：0', 'left');
+    this.scoreText = b1.text;
+    this.textLayouts.set(this.scoreText, b1.applyLayout);
 
-      const applyLayout = () => {
-        const iconWidth = icon.displayWidth;
-        const textWidth = label.displayWidth;
-        switch (alignment) {
-          case 'left':
-            icon.setOrigin(0, 0.5);
-            icon.setPosition(0, 0);
-            label.setOrigin(0, 0.5);
-            label.setPosition(iconWidth + spacing, 0);
-            break;
-          case 'right':
-            icon.setOrigin(1, 0.5);
-            icon.setPosition(0, 0);
-            label.setOrigin(1, 0.5);
-            label.setPosition(-iconWidth - spacing, 0);
-            break;
-          default: {
-            const totalWidth = iconWidth + spacing + textWidth;
-            icon.setOrigin(0.5, 0.5);
-            label.setOrigin(0.5, 0.5);
-            icon.setPosition(-totalWidth / 2 + iconWidth / 2, 0);
-            label.setPosition(icon.x + iconWidth / 2 + spacing + textWidth / 2, 0);
-            break;
-          }
-        }
-      };
+    const b2 = createBadge(this, width - 18, 26, ICON_TEXTURE_KEYS.arrow, 0xfacc15, '连击：0', 'right');
+    this.comboText = b2.text;
+    this.textLayouts.set(this.comboText, b2.applyLayout);
 
-      this.textLayouts.set(label, applyLayout);
-      applyLayout();
-      return { text: label, icon };
-    };
+    const b3 = createBadge(this, width / 2, 26, ICON_TEXTURE_KEYS.enemy, 0xf87171, '敌人：0', 'center');
+    this.enemyText = b3.text;
+    this.textLayouts.set(this.enemyText, b3.applyLayout);
 
-    this.scoreText = createBadge(18, 26, ICON_TEXTURE_KEYS.target, 0x38bdf8, 'Score: 0', 'left').text;
-    this.comboText = createBadge(width - 18, 26, ICON_TEXTURE_KEYS.arrow, 0xfacc15, 'Combo: 0', 'right').text;
-    this.enemyText = createBadge(width / 2, 26, ICON_TEXTURE_KEYS.enemy, 0xf87171, 'Enemies: 0', 'center').text;
+    const b4 = createBadge(this, 18, height - 132, ICON_TEXTURE_KEYS.ranger, 0xf8fafc, '准确率：100%', 'left');
+    this.accuracyText = b4.text;
+    this.textLayouts.set(this.accuracyText, b4.applyLayout);
 
-    this.accuracyText = createBadge(18, height - 132, ICON_TEXTURE_KEYS.ranger, 0xf8fafc, 'Accuracy: 100%', 'left').text;
+    const b5 = createBadge(this, 18, height - 92, ICON_TEXTURE_KEYS.bomb, 0xf97316, '炸弹：0', 'left');
+    this.bombIcon = b5.icon;
+    this.bombText = b5.text;
+    this.textLayouts.set(this.bombText, b5.applyLayout);
 
-    const bombBadge = createBadge(18, height - 92, ICON_TEXTURE_KEYS.bomb, 0xf97316, 'Bombs: 0', 'left');
-    this.bombIcon = bombBadge.icon;
-    this.bombText = bombBadge.text;
+    const b6 = createBadge(this, width - 18, height - 92, ICON_TEXTURE_KEYS.wallEmblem, 0xcbd5f5, '城墙耐久：0/0', 'right');
+    this.wallIcon = b6.icon;
+    this.wallText = b6.text;
+    this.textLayouts.set(this.wallText, b6.applyLayout);
 
-    const wallBadge = createBadge(
-      width - 18,
-      height - 92,
-      ICON_TEXTURE_KEYS.wallEmblem,
-      0xcbd5f5,
-      'Wall Integrity: 0/0',
-      'right',
-    );
-    this.wallIcon = wallBadge.icon;
-    this.wallText = wallBadge.text;
-
-    this.messageText = this.add
-      .text(this.scale.width / 2, this.scale.height - 44, '', {
-        ...style,
-        fontSize: '16px',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0.5);
+    this.messageText = this.add.text(this.scale.width / 2, this.scale.height - 44, '', {
+      fontFamily: '"Noto Sans SC", sans-serif',
+      fontSize: '16px',
+      color: '#e2e8f0',
+    }).setOrigin(0.5);
   }
 
   private refreshBadgeLayout(text: Phaser.GameObjects.Text): void {
@@ -134,15 +82,13 @@ export class UIScene extends Phaser.Scene {
   }
 
   private handleScoreUpdated(summary: ScoreSummary): void {
-    this.scoreText.setText(`Score: ${summary.score}`);
-    this.comboText.setText(`Combo: ${summary.combo}`);
+    this.scoreText.setText(`积分：${summary.score}`);
+    this.comboText.setText(`连击：${summary.combo}`);
     const accuracy = Number.isFinite(summary.accuracy)
       ? Math.round(summary.accuracy * 100)
       : 100;
-    this.accuracyText.setText(`Accuracy: ${accuracy}%`);
-    this.enemyText.setText(
-      `Enemies: ${summary.enemiesDefeated} (Typed ${summary.typedEliminations} / Bomb ${summary.bombEliminations})`,
-    );
+    this.accuracyText.setText(`准确率：${accuracy}%`);
+    this.enemyText.setText(`敌人：${summary.enemiesDefeated}（箭矢 ${summary.typedEliminations} / 炸弹 ${summary.bombEliminations}）`);
     this.refreshBadgeLayout(this.scoreText);
     this.refreshBadgeLayout(this.comboText);
     this.refreshBadgeLayout(this.accuracyText);
@@ -160,17 +106,17 @@ export class UIScene extends Phaser.Scene {
   private updateBombStatus(status: BombStatus): void {
     if (status.cooldownRemaining > 0 && status.charges === 0) {
       const seconds = Math.ceil(status.cooldownRemaining / 1000);
-      this.bombText.setText(`Bombs: recharging (${seconds}s)`);
+      this.bombText.setText(`炸弹：充能中（${seconds}s）`);
       this.bombIcon.setTint(0x94a3b8);
     } else {
-      this.bombText.setText(`Bombs: ${status.charges}/${status.maxCharges}`);
+      this.bombText.setText(`炸弹：${status.charges}/${status.maxCharges}`);
       this.bombIcon.setTint(status.charges > 0 ? 0xf97316 : 0x64748b);
     }
     this.refreshBadgeLayout(this.bombText);
   }
 
   private updateWallStatus(status: WallStatus): void {
-    this.wallText.setText(`Wall Integrity: ${status.current}/${status.max}`);
+    this.wallText.setText(`城墙耐久：${status.current}/${status.max}`);
     const ratio = status.max === 0 ? 1 : status.current / status.max;
     if (ratio <= 0.34) {
       this.wallText.setColor('#f87171');

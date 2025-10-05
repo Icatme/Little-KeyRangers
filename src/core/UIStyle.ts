@@ -65,6 +65,53 @@ export function createButton(
   return container;
 }
 
+export function createBadge(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  texture: string,
+  tint: number,
+  initialText: string,
+  alignment: 'left' | 'center' | 'right',
+): { container: Phaser.GameObjects.Container; icon: Phaser.GameObjects.Image; text: Phaser.GameObjects.Text; applyLayout: () => void } {
+  const spacing = 6;
+  const container = scene.add.container(x, y);
+  container.setDepth(30);
+  const icon = scene.add.image(0, 0, texture).setDisplaySize(20, 20).setTint(tint);
+  const text = scene.add.text(0, 0, initialText, { fontFamily: '"Noto Sans SC", sans-serif', fontSize: '16px', color: '#f8fafc' });
+  container.add([icon, text]);
+
+  const applyLayout = () => {
+    const iconWidth = icon.displayWidth;
+    const textWidth = text.displayWidth;
+    switch (alignment) {
+      case 'left':
+        icon.setOrigin(0, 0.5);
+        icon.setPosition(0, 0);
+        text.setOrigin(0, 0.5);
+        text.setPosition(iconWidth + spacing, 0);
+        break;
+      case 'right':
+        icon.setOrigin(1, 0.5);
+        icon.setPosition(0, 0);
+        text.setOrigin(1, 0.5);
+        text.setPosition(-iconWidth - spacing, 0);
+        break;
+      default: {
+        const totalWidth = iconWidth + spacing + textWidth;
+        icon.setOrigin(0.5, 0.5);
+        text.setOrigin(0.5, 0.5);
+        icon.setPosition(-totalWidth / 2 + iconWidth / 2, 0);
+        text.setPosition(icon.x + iconWidth / 2 + spacing + textWidth / 2, 0);
+        break;
+      }
+    }
+  };
+
+  applyLayout();
+  return { container, icon, text, applyLayout };
+}
+
 export function fadeInScene(scene: Phaser.Scene, duration = 300): void {
   scene.cameras.main.setBackgroundColor(UI_COLORS.bg);
   scene.cameras.main.fadeIn(duration, 0, 0, 0);
@@ -76,4 +123,3 @@ export function fadeOutScene(scene: Phaser.Scene, duration = 300, onComplete?: (
     scene.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, onComplete);
   }
 }
-
