@@ -11,6 +11,7 @@ import ARROW_IMG from '../assets/Tiny Swords/Factions/Knights/Troops/Archer/Arro
 import DYNAMITE_IMG from '../assets/Tiny Swords/Factions/Goblins/Troops/TNT/Dynamite/Dynamite.png';
 import UI_ICON_05 from '../assets/Tiny Swords/UI/Icons/Regular_05.png';
 import UI_ICON_09 from '../assets/Tiny Swords/UI/Icons/Regular_09.png';
+import CASTLE_BG from '../assets/castle.png';
 import { createPanel, fadeInScene, fadeOutScene, UI_TEXT } from './UIStyle';
 
 export class BootScene extends Phaser.Scene {
@@ -46,8 +47,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image(ICON_TEXTURE_KEYS.wallEmblem, UI_ICON_05);
     this.load.image(ICON_TEXTURE_KEYS.target, UI_ICON_09);
 
-    // Background image served from /public
-    this.load.image('bg-castle', '/assets/castle.png');
+    // Background image from src/assets
+    this.load.image('bg-castle', CASTLE_BG);
   }
 
   override async create(): Promise<void> {
