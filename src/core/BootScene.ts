@@ -45,6 +45,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image(ICON_TEXTURE_KEYS.bomb, DYNAMITE_IMG);
     this.load.image(ICON_TEXTURE_KEYS.wallEmblem, UI_ICON_05);
     this.load.image(ICON_TEXTURE_KEYS.target, UI_ICON_09);
+
+    // Background image served from /public
+    this.load.image('bg-castle', '/assets/castle.png');
   }
 
   override async create(): Promise<void> {
