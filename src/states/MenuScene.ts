@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
 import { getStages, getCurrentStageIndex, isStageUnlocked, setCurrentStageIndex } from '../core/StageManager';
-import { WordBankManager } from '../core/WordBankManager';
 
 interface StageOption {
   name: string;
@@ -17,7 +16,6 @@ export class MenuScene extends Phaser.Scene {
   private stageInfoText!: Phaser.GameObjects.Text;
   private startHint!: Phaser.GameObjects.Text;
   private hintTween?: Phaser.Tweens.Tween;
-  private bankNameText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('MenuScene');
@@ -60,47 +58,19 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5, 0.9)
       .setAlpha(0.95);
 
-    // Word bank selector panel
-    const bankPanel = this.add
-      .rectangle(width / 2, height * 0.52, width * 0.68, 80, 0x0b1220, 0.78)
-      .setStrokeStyle(2, 0x1e293b);
-
+    // Settings entry
+    const settingsBtn = this.add
+      .rectangle(width * 0.85, height * 0.2, 120, 40, 0x0b1220, 0.9)
+      .setStrokeStyle(2, 0x1e293b)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.scene.start('SettingsScene'));
     this.add
-      .text(bankPanel.x - bankPanel.width / 2 + 20, bankPanel.y - 26, '词库', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '20px',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0, 0.5);
-
-    const currentBank = WordBankManager.getSelectedBank();
-    this.bankNameText = this.add
-      .text(bankPanel.x - bankPanel.width / 2 + 86, bankPanel.y - 26, currentBank.name, {
+      .text(settingsBtn.x, settingsBtn.y, '设置', {
         fontFamily: '"Noto Sans SC", sans-serif',
         fontSize: '20px',
         color: '#cbd5f5',
       })
-      .setOrigin(0, 0.5);
-
-    const switchText = this.add
-      .text(bankPanel.x + bankPanel.width / 2 - 240, bankPanel.y - 26, '切换', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '18px',
-        color: '#38bdf8',
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.switchBank());
-
-    const editText = this.add
-      .text(bankPanel.x + bankPanel.width / 2 - 150, bankPanel.y - 26, '编辑', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '18px',
-        color: '#facc15',
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.scene.start('WordBankScene'));
+      .setOrigin(0.5);
 
     const stagePanel = this.add
       .rectangle(width / 2, height * 0.7, width * 0.68, 220, 0x0b1220, 0.78)
@@ -257,14 +227,5 @@ export class MenuScene extends Phaser.Scene {
     const stage = this.stages[this.selectedStageIndex];
     setCurrentStageIndex(this.selectedStageIndex);
     this.scene.start('PlayScene', { stageId: stage.id });
-  }
-
-  private switchBank(): void {
-    const banks = WordBankManager.getBanks();
-    const current = WordBankManager.getSelectedBank();
-    const idx = banks.findIndex((b) => b.id === current.id);
-    const next = banks[(idx + 1) % banks.length];
-    WordBankManager.selectBank(next.id);
-    this.bankNameText.setText(next.name);
   }
 }

@@ -289,6 +289,19 @@ export class Enemy extends Phaser.GameObjects.Container {
         this.wordPanel.setStrokeStyle(2, 0x475569);
       },
     });
+
+    // Notify listeners so they can refresh the word for multi-HP enemies
+    this.emit('damaged');
+  }
+
+  // Update this enemy's word and reset typing state
+  updateWord(next: string): void {
+    const newWord = String(next || '').toLowerCase();
+    if (!newWord) return;
+    this.currentWord = newWord;
+    // Keep panel width as-is to avoid layout thrash; just reset typing display
+    this.resetTypingState();
+    this.emit('word:changed', this.currentWord);
   }
 
   eliminateByBomb(): void {

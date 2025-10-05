@@ -108,6 +108,11 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
     return this.wordBag.pop() ?? 'enemy';
   }
 
+  // Provide a replacement word for damaged multi-HP enemies without consuming the fixed sequence
+  replacementWord(type: EnemyType): string {
+    return this.pickWordForType(type);
+  }
+
   private pickEnemyType(): EnemyType {
     // Weights: fast 35%, heavy 25%, normal 40%
     const r = Math.random();

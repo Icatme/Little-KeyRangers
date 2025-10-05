@@ -14,6 +14,7 @@ import { Powerup, PowerupCollectTrigger, PowerupType } from '../entities/Powerup
 import { getStageContext, getStages, isStageUnlocked, markStageCompleted } from '../core/StageManager';
 import { StageDefinition } from '../config/stages';
 import { WordBankManager } from '../core/WordBankManager';
+import { SettingsManager } from '../core/SettingsManager';
 
 interface PlaySceneData {
   stageId?: number;
@@ -37,6 +38,7 @@ export class PlayScene extends Phaser.Scene {
   private stageConfig!: StageConfig;
   private stageIndex = 0;
   private dropRate = 0;
+  private bossTriggerCount = 0;
 
   private activeEnemies: Enemy[] = [];
   private currentTarget?: WordTarget;
@@ -99,9 +101,11 @@ export class PlayScene extends Phaser.Scene {
     this.typingSystem.on('mismatch', this.handleTypingMismatch, this);
     this.typingSystem.on('clear', this.handleTypingClear, this);
 
-    // Build a word bag from the selected Word Bank and stage wordMix
+    // Build a word bag from the selected Word Bank and stage wordMix (allow settings override)
     const totalEnemies = this.stageConfig.spawn.total;
-    const bag = WordBankManager.makeWordBag(totalEnemies, this.stageDefinition.wordMix);
+    const stageMix = SettingsManager.getStageWordMix(this.stageDefinition.id, this.stageDefinition.wordMix);
+    const bag = WordBankManager.makeWordBag(totalEnemies, stageMix);
+    this.bossTriggerCount = Math.ceil(totalEnemies * 0.6);
 
     this.enemySpawner = new EnemySpawner(
       this,
@@ -260,6 +264,16 @@ export class PlayScene extends Phaser.Scene {
     });
     enemy.once('breached', () => {
       this.handleEnemyBreach(enemy);
+    });
+
+    // Multi-HP: when damaged, change its word
+    enemy.on('damaged', () => {
+      const next = this.enemySpawner.replacementWord(enemy.enemyType);
+      enemy.updateWord(next);
+      if (this.currentTarget === enemy) {
+        this.typingSystem.setTarget(enemy.word);
+        EventBus.emit(Events.WordChanged, enemy.word);
+      }
     });
 
     this.refreshTargetSelection();
@@ -691,7 +705,8 @@ export class PlayScene extends Phaser.Scene {
   private pickPowerupWord(): string {
     // Sample one word from current bank using this stage's mix
     try {
-      const bag = WordBankManager.makeWordBag(1, this.stageDefinition.wordMix);
+      const mix = SettingsManager.getStageWordMix(this.stageDefinition.id, this.stageDefinition.wordMix);
+      const bag = WordBankManager.makeWordBag(1, mix);
       return bag[0] ?? 'supply';
     } catch {
       return 'supply';
@@ -776,18 +791,13 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
-    // Spawn boss when all enemies of the wave have been spawned and cleared from the field
-    if (!this.bossSpawned && this.enemySpawner.isFinished() && this.activeEnemies.length === 0) {
+    // Spawn boss once enough of the wave has been deployed
+    if (!this.bossSpawned && this.enemySpawner.getSpawnedCount() >= this.bossTriggerCount) {
       this.spawnBoss();
-      return;
     }
 
-    if (this.bossSpawned && !this.bossDefeated) {
-      return;
-    }
-
-    // Finish round once boss is defeated and no enemies remain
-    if (this.activeEnemies.length === 0 && this.bossDefeated) {
+    // Finish round once boss is defeated, all enemies are cleared, and spawner finished
+    if (this.bossSpawned && this.bossDefeated && this.enemySpawner.isFinished() && this.activeEnemies.length === 0) {
       this.finishRound(true);
     }
   }
@@ -800,8 +810,12 @@ export class PlayScene extends Phaser.Scene {
 
     const spawnX = this.scale.width + 160;
     const spawnY = this.scale.height / 2;
+    // Boss words: use next-stage difficulty mix
+    const nextMix = SettingsManager.getNextDifficultyMix(this.stageDefinition.id);
+    const desiredCount = Math.max(5, this.stageDefinition.boss.words.length || 5);
+    const bossBag = WordBankManager.makeWordBag(desiredCount, nextMix);
     this.boss = new Boss(this, spawnX, spawnY, {
-      words: [...this.stageDefinition.boss.words],
+      words: bossBag,
       speed: this.stageDefinition.boss.speed,
       pushback: this.stageDefinition.boss.pushback,
       damage: this.stageDefinition.boss.damage,

@@ -48,6 +48,7 @@ export class PauseScene extends Phaser.Scene {
     const options: Array<{ label: string; keyHint: string; handler: () => void }> = [
       { label: '继续守城', keyHint: 'Enter / Esc', handler: () => this.resumeGame() },
       { label: '重新挑战本关', keyHint: 'R', handler: () => this.restartStage() },
+      { label: '游戏设置', keyHint: 'S', handler: () => this.openSettings() },
       { label: '返回主菜单', keyHint: 'M', handler: () => this.backToMenu() },
     ];
 
@@ -102,6 +103,7 @@ export class PauseScene extends Phaser.Scene {
     bindKey('keydown-R', () => this.restartStage());
     bindKey('keydown-M', () => this.backToMenu());
     bindKey('keydown-P', () => this.resumeGame());
+    bindKey('keydown-S', () => this.openSettings());
 
   }
 
@@ -123,5 +125,13 @@ export class PauseScene extends Phaser.Scene {
     this.scene.stop('PlayScene');
     this.scene.stop();
     this.scene.start('MenuScene');
+  }
+
+  private openSettings(): void {
+    // Go to settings; stop play to avoid input conflicts
+    this.scene.stop('UIScene');
+    this.scene.stop('PlayScene');
+    this.scene.stop();
+    this.scene.start('SettingsScene');
   }
 }
