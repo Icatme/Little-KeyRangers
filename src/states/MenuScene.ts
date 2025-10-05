@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ICON_TEXTURE_KEYS } from '../core/IconTextureLoader';
+import { UI_TEXT, createButton, createPanel, fadeInScene } from '../core/UIStyle';
 import { getStages, getCurrentStageIndex, isStageUnlocked, setCurrentStageIndex } from '../core/StageManager';
 
 interface StageOption {
@@ -24,7 +25,7 @@ export class MenuScene extends Phaser.Scene {
   override create(): void {
     const { width, height } = this.scale;
     this.selectedStageIndex = getCurrentStageIndex();
-    this.cameras.main.setBackgroundColor('#020617');
+    fadeInScene(this, 240);
 
     this.add
       .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
@@ -32,25 +33,11 @@ export class MenuScene extends Phaser.Scene {
       .setAlpha(0.18)
       .setDepth(-2);
 
-    const banner = this.add
-      .rectangle(width / 2, height * 0.2, width * 0.72, 116, 0x0f172a, 0.85)
-      .setStrokeStyle(2, 0x1e293b);
+    const banner = createPanel(this, width / 2, height * 0.2, width * 0.72, 116, { alpha: 0.85 });
 
-    this.add
-      .text(banner.x, banner.y - 18, 'Little Key Rangers', {
-        fontFamily: '"Cinzel", "Noto Serif SC", serif',
-        fontSize: '52px',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5);
+    this.add.text(banner.x, banner.y - 18, 'Little Key Rangers', UI_TEXT.title).setOrigin(0.5);
 
-    this.add
-      .text(banner.x, banner.y + 40, '守护城墙的键盘游侠', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '22px',
-        color: '#cbd5f5',
-      })
-      .setOrigin(0.5);
+    this.add.text(banner.x, banner.y + 40, '守护城墙的键盘游侠', { ...UI_TEXT.subtitle, fontSize: '22px' }).setOrigin(0.5);
 
     this.add
       .image(width / 2, height * 0.42, ICON_TEXTURE_KEYS.ranger)
@@ -59,30 +46,11 @@ export class MenuScene extends Phaser.Scene {
       .setAlpha(0.95);
 
     // Settings entry
-    const settingsBtn = this.add
-      .rectangle(width * 0.85, height * 0.2, 120, 40, 0x0b1220, 0.9)
-      .setStrokeStyle(2, 0x1e293b)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.scene.start('SettingsScene'));
-    this.add
-      .text(settingsBtn.x, settingsBtn.y, '设置', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '20px',
-        color: '#cbd5f5',
-      })
-      .setOrigin(0.5);
+    createButton(this, width * 0.85, height * 0.2, 120, '设置', () => this.scene.start('SettingsScene'), { height: 40 });
 
-    const stagePanel = this.add
-      .rectangle(width / 2, height * 0.7, width * 0.68, 220, 0x0b1220, 0.78)
-      .setStrokeStyle(2, 0x1e293b);
+    const stagePanel = createPanel(this, width / 2, height * 0.7, width * 0.68, 240, { alpha: 0.78 });
 
-    this.add
-      .text(stagePanel.x, stagePanel.y - stagePanel.height / 2 + 26, '选择关卡', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '22px',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0.5, 0);
+    this.add.text(stagePanel.x, stagePanel.y - stagePanel.height / 2 + 26, '选择关卡', { ...UI_TEXT.label, fontSize: '22px' }).setOrigin(0.5, 0);
 
     const optionLeft = stagePanel.x - stagePanel.width / 2 + 40;
     const optionTop = stagePanel.y - stagePanel.height / 2 + 66;
@@ -91,11 +59,12 @@ export class MenuScene extends Phaser.Scene {
       const locked = !isStageUnlocked(index);
       const option = this.add
         .text(optionLeft, optionTop + index * 54, this.formatStageLabel(stage, locked), {
-          fontFamily: '"Noto Sans SC", sans-serif',
+          ...UI_TEXT.label,
           fontSize: '20px',
           color: locked ? '#64748b' : '#cbd5f5',
         })
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5)
+        .setAlpha(0);
 
       if (!locked) {
         option.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
@@ -108,13 +77,14 @@ export class MenuScene extends Phaser.Scene {
 
     this.stageInfoText = this.add
       .text(stagePanel.x, stagePanel.y + stagePanel.height / 2 - 52, '', {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '18px',
+        ...UI_TEXT.body,
         color: '#94a3b8',
+        fontSize: '18px',
         wordWrap: { width: stagePanel.width - 80 },
         align: 'center',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setAlpha(0);
 
     this.startHint = this.add
       .text(stagePanel.x, stagePanel.y + stagePanel.height / 2 - 16, '', {
@@ -124,7 +94,8 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.startGame());
+      .on('pointerdown', () => this.startGame())
+      .setAlpha(0);
 
     this.hintTween = this.tweens.add({
       targets: this.startHint,
@@ -145,7 +116,12 @@ export class MenuScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-UP', () => this.changeSelection(-1));
     this.input.keyboard?.on('keydown-DOWN', () => this.changeSelection(1));
 
+    // Gentle fade-in for options/hints
+    this.stageTexts.forEach((t, i) => {
+      this.tweens.add({ targets: t, alpha: 1, duration: 260, delay: i * 60 });
+    });
     this.updateSelection(this.selectedStageIndex);
+    this.tweens.add({ targets: [this.stageInfoText, this.startHint], alpha: 1, duration: 240, delay: 240 });
   }
 
   private formatStageLabel(stage: StageOption, locked: boolean): string {
@@ -226,6 +202,9 @@ export class MenuScene extends Phaser.Scene {
 
     const stage = this.stages[this.selectedStageIndex];
     setCurrentStageIndex(this.selectedStageIndex);
-    this.scene.start('PlayScene', { stageId: stage.id });
+    this.cameras.main.fadeOut(220, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start('PlayScene', { stageId: stage.id });
+    });
   }
 }

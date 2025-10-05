@@ -71,6 +71,8 @@ export class PlayScene extends Phaser.Scene {
   }
 
   override create(): void {
+    // Smooth scene entry
+    this.cameras.main.fadeIn(220, 0, 0, 0);
     this.stageFinished = false;
     this.defeatedCount = 0;
     this.activeEnemies = [];
@@ -176,9 +178,7 @@ export class PlayScene extends Phaser.Scene {
       .setAlpha(0.16)
       .setDepth(-6);
 
-    this.add
-      .rectangle(width / 2, height / 2, width, height, 0x061125, 0.6)
-      .setDepth(-5);
+    this.add.rectangle(width / 2, height / 2, width, height, 0x061125, 0.6).setDepth(-5);
 
     const laneWidth = width - this.breachX;
 
@@ -206,28 +206,21 @@ export class PlayScene extends Phaser.Scene {
       .setOrigin(0.46, 0.92)
       .setDepth(-1);
 
-    const banner = this.add
-      .rectangle(width / 2, 64, width * 0.7, 60, 0x0f172a, 0.72)
-      .setStrokeStyle(2, 0x1e293b)
-      .setDepth(-2);
+    const banner = this.add.rectangle(width / 2, 64, width * 0.7, 60, 0x0f172a, 0.72).setStrokeStyle(2, 0x1e293b).setDepth(-2);
 
-    this.stageBanner = this.add
-      .text(banner.x, banner.y - 10, `${this.stageDefinition.name}`, {
-        fontFamily: '"Cinzel", "Noto Serif SC", serif',
-        fontSize: '30px',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5)
-      .setDepth(-1);
+    this.stageBanner = this.add.text(banner.x, banner.y - 10, `${this.stageDefinition.name}`, {
+      fontFamily: '"Cinzel", "Noto Serif SC", serif',
+      fontSize: '30px',
+      color: '#f8fafc',
+    }).setOrigin(0.5).setDepth(-1).setAlpha(0);
 
-    this.stageDetailText = this.add
-      .text(banner.x, banner.y + 16, `${this.difficultyLabel()} · ${this.stageDefinition.description}`, {
-        fontFamily: '"Noto Sans SC", sans-serif',
-        fontSize: '18px',
-        color: '#cbd5f5',
-      })
-      .setOrigin(0.5)
-      .setDepth(-1);
+    this.stageDetailText = this.add.text(banner.x, banner.y + 16, `${this.difficultyLabel()} · ${this.stageDefinition.description}`, {
+      fontFamily: '"Noto Sans SC", sans-serif',
+      fontSize: '18px',
+      color: '#cbd5f5',
+    }).setOrigin(0.5).setDepth(-1).setAlpha(0);
+
+    this.tweens.add({ targets: [this.stageBanner, this.stageDetailText], alpha: 1, duration: 260, delay: 180 });
 
     this.add
       .text(width / 2, 116, '输入敌人单词发射箭矢 · 空格键释放炸弹', {

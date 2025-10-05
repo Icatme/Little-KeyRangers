@@ -58,7 +58,7 @@ const ICON_DEFINITIONS: IconDescriptor[] = [
   {
     key: ICON_TEXTURE_KEYS.enemyNormal,
     path: SvgEvilMinion,
-    fill: '#f8fafc',
+    fill: '#cbd5f5',
   },
   {
     key: ICON_TEXTURE_KEYS.boss,
