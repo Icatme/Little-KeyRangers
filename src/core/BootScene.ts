@@ -4,6 +4,8 @@ import { createPanel, fadeInScene, fadeOutScene, UI_TEXT } from './UIStyle';
 
 export class BootScene extends Phaser.Scene {
   private loadingText!: Phaser.GameObjects.Text;
+  private barBg!: Phaser.GameObjects.Rectangle;
+  private barFill!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super('BootScene');
@@ -17,15 +19,15 @@ export class BootScene extends Phaser.Scene {
 
     this.loadingText = this.add.text(width / 2, height / 2 - 12, '正在装配游侠装备...', UI_TEXT.body).setOrigin(0.5);
 
-    const barBg = this.add.rectangle(width / 2, height / 2 + 26, width * 0.42, 12, 0x0f172a, 0.9).setStrokeStyle(2, 0x1e293b);
-    const barFill = this.add.rectangle(barBg.x - barBg.width / 2 + 2, barBg.y, 0, 8, 0x38bdf8, 0.9).setOrigin(0, 0.5);
+    this.barBg = this.add.rectangle(width / 2, height / 2 + 26, width * 0.42, 12, 0x0f172a, 0.9).setStrokeStyle(2, 0x1e293b);
+    this.barFill = this.add.rectangle(this.barBg.x - this.barBg.width / 2 + 2, this.barBg.y, 0, 8, 0x38bdf8, 0.9).setOrigin(0, 0.5);
   }
 
   override async create(): Promise<void> {
     await loadIconTextures(this, (loaded, total) => {
       const progress = Math.round((loaded / total) * 100);
       this.loadingText.setText(`正在装配游侠装备... ${progress}%`);
-      barFill.setSize((barBg.width - 4) * (progress / 100), 8);
+      this.barFill.setSize((this.barBg.width - 4) * (progress / 100), 8);
     });
 
     this.loadingText.setText('装配完成，准备出击！');
