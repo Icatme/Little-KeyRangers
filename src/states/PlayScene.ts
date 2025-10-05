@@ -189,20 +189,8 @@ export class PlayScene extends Phaser.Scene {
   private setupBattlefield(): void {
     const { width, height } = this.scale;
 
-    this.add
-      .image(width / 2, height / 2, ICON_TEXTURE_KEYS.castle)
-      .setDisplaySize(width * 1.02, height * 1.04)
-      .setAlpha(0.16)
-      .setDepth(-6);
-
-    this.add.rectangle(width / 2, height / 2, width, height, 0x061125, 0.6).setDepth(-5);
-
-    const laneWidth = width - this.breachX;
-
-    this.add
-      .rectangle(this.breachX + laneWidth / 2, height / 2, laneWidth, height * 0.82, 0x0b1220, 0.72)
-      .setDepth(-4)
-      .setStrokeStyle(2, 0x1e293b);
+    // 移除战场半透明遮罩与旧背景，直接使用 'bg-castle' 背景
+    // 旧的 ICON_TEXTURE_KEYS.castle 背景与全屏暗色矩形已删除
 
     this.wall = this.add
       .image(this.breachX * 0.55, height / 2, ICON_TEXTURE_KEYS.wallEmblem)
