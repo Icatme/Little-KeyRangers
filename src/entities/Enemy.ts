@@ -71,12 +71,17 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.panelWidth = Math.max(140, this.currentWord.length * 28);
     this.textLeft = 12 - this.panelWidth / 2 + 10;
 
-    const baseSize = this.enemyType === 'heavy' ? 104 : this.enemyType === 'fast' ? 84 : 92;
+    const baseSize = this.enemyType === 'heavy' ? 116 : this.enemyType === 'fast' ? 80 : 92;
+    const textureKey =
+      this.enemyType === 'fast'
+        ? ICON_TEXTURE_KEYS.enemyFast
+        : this.enemyType === 'heavy'
+        ? ICON_TEXTURE_KEYS.enemyHeavy
+        : ICON_TEXTURE_KEYS.enemyNormal;
     this.sprite = scene.add
-      .image(-12, -46, ICON_TEXTURE_KEYS.enemy)
+      .image(-12, -46, textureKey)
       .setDisplaySize(baseSize, baseSize)
-      .setDepth(1)
-      .setTint(this.enemyType === 'fast' ? 0xf87171 : this.enemyType === 'heavy' ? 0x60a5fa : 0xf8fafc);
+      .setDepth(1);
 
     this.shadow = scene.add
       .ellipse(10, 58, this.panelWidth * 0.48, 30, 0x000000, 0.28)
@@ -280,7 +285,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       yoyo: true,
       ease: Phaser.Math.Easing.Cubic.Out,
       onComplete: () => {
-        this.sprite.setTint(this.enemyType === 'fast' ? 0xf87171 : this.enemyType === 'heavy' ? 0x60a5fa : 0xf8fafc);
+        this.sprite.clearTint();
         this.wordPanel.setStrokeStyle(2, 0x475569);
       },
     });

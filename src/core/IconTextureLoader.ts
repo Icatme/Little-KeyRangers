@@ -13,6 +13,10 @@ import {
 export const ICON_TEXTURE_KEYS = {
   ranger: 'icon-ranger',
   enemy: 'icon-enemy',
+  enemyFast: 'icon-enemy-fast',
+  enemyHeavy: 'icon-enemy-heavy',
+  enemyNormal: 'icon-enemy-normal',
+  boss: 'icon-boss',
   castle: 'icon-castle',
   wallEmblem: 'icon-wall-emblem',
   arrow: 'icon-arrow',
@@ -40,6 +44,26 @@ const ICON_DEFINITIONS: IconDescriptor[] = [
     key: ICON_TEXTURE_KEYS.enemy,
     path: SvgEvilMinion,
     fill: '#f87171',
+  },
+  {
+    key: ICON_TEXTURE_KEYS.enemyFast,
+    path: SvgEvilMinion,
+    fill: '#f87171',
+  },
+  {
+    key: ICON_TEXTURE_KEYS.enemyHeavy,
+    path: SvgEvilMinion,
+    fill: '#60a5fa',
+  },
+  {
+    key: ICON_TEXTURE_KEYS.enemyNormal,
+    path: SvgEvilMinion,
+    fill: '#f8fafc',
+  },
+  {
+    key: ICON_TEXTURE_KEYS.boss,
+    path: SvgEvilMinion,
+    fill: '#f472b6',
   },
   {
     key: ICON_TEXTURE_KEYS.castle,

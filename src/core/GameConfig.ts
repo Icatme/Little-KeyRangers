@@ -5,6 +5,7 @@ import { MenuScene } from '../states/MenuScene';
 import { PlayScene } from '../states/PlayScene';
 import { ResultScene } from '../states/ResultScene';
 import { PauseScene } from '../states/PauseScene';
+import { WordBankScene } from '../states/WordBankScene';
 
 export function createGameConfig(): Phaser.Types.Core.GameConfig {
   // Lock game logical resolution to 16:9
@@ -20,11 +21,14 @@ export function createGameConfig(): Phaser.Types.Core.GameConfig {
     width,
     height,
     backgroundColor: '#0f172a',
+    dom: {
+      createContainer: true,
+    },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MenuScene, PlayScene, PauseScene, UIScene, ResultScene],
+    scene: [BootScene, MenuScene, PlayScene, PauseScene, UIScene, ResultScene, WordBankScene],
     physics: {
       default: 'arcade',
       arcade: {

@@ -11,6 +11,7 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
   private readonly shortWords: string[];
   private readonly longWords: string[];
   private wordBag: string[];
+  private readonly fixedSequence: boolean;
   private spawnTimer = 0;
   private spawnedCount = 0;
   private active = true;
@@ -21,6 +22,7 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
     wordPool: string[],
     breachX: number,
     dangerZone: number,
+    fixedSequence = false,
   ) {
     super();
     this.scene = scene;
@@ -31,6 +33,7 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
     this.shortWords = this.baseWords.filter((w) => w.length <= 6);
     this.longWords = this.baseWords.filter((w) => w.length >= 9);
     this.wordBag = this.shuffleWords(this.baseWords);
+    this.fixedSequence = fixedSequence;
     this.spawnTimer = config.interval * 0.5;
   }
 
@@ -63,7 +66,7 @@ export class EnemySpawner extends Phaser.Events.EventEmitter {
 
   private spawnEnemy(): void {
     const type = this.pickEnemyType();
-    const word = this.pickWordForType(type);
+    const word = this.fixedSequence ? this.nextWord() : this.pickWordForType(type);
     const path = Phaser.Utils.Array.GetRandom(this.config.paths);
     const spawnOffset = Phaser.Math.Between(80, 140);
     const x = this.scene.scale.width + spawnOffset;

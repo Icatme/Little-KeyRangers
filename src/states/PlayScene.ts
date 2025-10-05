@@ -13,6 +13,7 @@ import { Boss } from '../entities/Boss';
 import { Powerup, PowerupCollectTrigger, PowerupType } from '../entities/Powerup';
 import { getStageContext, getStages, isStageUnlocked, markStageCompleted } from '../core/StageManager';
 import { StageDefinition } from '../config/stages';
+import { WordBankManager } from '../core/WordBankManager';
 
 interface PlaySceneData {
   stageId?: number;
@@ -98,12 +99,17 @@ export class PlayScene extends Phaser.Scene {
     this.typingSystem.on('mismatch', this.handleTypingMismatch, this);
     this.typingSystem.on('clear', this.handleTypingClear, this);
 
+    // Build a word bag from the selected Word Bank and stage wordMix
+    const totalEnemies = this.stageConfig.spawn.total;
+    const bag = WordBankManager.makeWordBag(totalEnemies, this.stageDefinition.wordMix);
+
     this.enemySpawner = new EnemySpawner(
       this,
       this.stageConfig.spawn,
-      this.stageDefinition.wordPool,
+      bag,
       this.breachX,
       this.stageConfig.dangerZone,
+      true, // use fixed sequence from our mixed bag to respect proportions
     );
     this.enemySpawner.on('spawn', this.handleEnemySpawn, this);
 
@@ -683,12 +689,13 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private pickPowerupWord(): string {
-    const pool = this.stageDefinition.wordPool;
-    if (pool.length === 0) {
+    // Sample one word from current bank using this stage's mix
+    try {
+      const bag = WordBankManager.makeWordBag(1, this.stageDefinition.wordMix);
+      return bag[0] ?? 'supply';
+    } catch {
       return 'supply';
     }
-    const index = Phaser.Math.Between(0, pool.length - 1);
-    return pool[index];
   }
 
   private choosePowerupType(): PowerupType {

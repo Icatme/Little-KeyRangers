@@ -1,7 +1,7 @@
 import { StageConfig } from './stageConfig';
-import easy from './wordPools/easy.json';
-import normal from './wordPools/normal.json';
-import hard from './wordPools/hard.json';
+// Word selection now comes from a selectable WordBank.
+// Each stage defines proportions of the three difficulty groups.
+import type { WordMix } from '../core/WordBankManager';
 
 export interface BossConfig {
   name: string;
@@ -17,7 +17,7 @@ export interface StageDefinition {
   name: string;
   description: string;
   difficulty: 'easy' | 'normal' | 'hard';
-  wordPool: string[];
+  wordMix: WordMix; // proportion of g1/g2/g3 in this stage
   stageConfig: StageConfig;
   dropRate: number;
   boss: BossConfig;
@@ -65,7 +65,7 @@ export const stages: StageDefinition[] = [
     name: '城墙演练',
     description: '轻度敌军压境，熟悉箭矢与炸弹的基础操控。',
     difficulty: 'easy',
-    wordPool: easy.words,
+    wordMix: { g1: 0.6, g2: 0.3, g3: 0.1 },
     stageConfig: createStageConfig(
       {
         wall: { maxHp: 4 },
@@ -88,7 +88,7 @@ export const stages: StageDefinition[] = [
     dropRate: 0.25,
     boss: {
       name: '暗影侦察兵',
-      words: ['shadow', 'focus', 'valor'],
+      words: ['shadow', 'focus', 'valor', 'resist', 'unyielding'],
       speed: 60,
       pushback: 140,
       damage: 2,
@@ -100,7 +100,7 @@ export const stages: StageDefinition[] = [
     name: '暴风前线',
     description: '更多敌人从各个角度袭来，保持冷静的节奏与准确度。',
     difficulty: 'normal',
-    wordPool: normal.words,
+    wordMix: { g1: 0.3, g2: 0.4, g3: 0.3 },
     stageConfig: createStageConfig(
       {
         wall: { maxHp: 4 },
@@ -123,7 +123,7 @@ export const stages: StageDefinition[] = [
     dropRate: 0.32,
     boss: {
       name: '风暴军需官',
-      words: ['tempest', 'barricade', 'sentinel', 'command'],
+      words: ['tempest', 'barricade', 'sentinel', 'command', 'stronghold', 'onslaught'],
       speed: 70,
       pushback: 170,
       damage: 2,
@@ -135,7 +135,7 @@ export const stages: StageDefinition[] = [
     name: '深夜决战',
     description: '黑暗之中强敌云集，谨慎守护城墙直至最后一刻。',
     difficulty: 'hard',
-    wordPool: hard.words,
+    wordMix: { g1: 0.1, g2: 0.3, g3: 0.6 },
     stageConfig: createStageConfig(
       {
         wall: { maxHp: 5 },
@@ -159,7 +159,7 @@ export const stages: StageDefinition[] = [
     dropRate: 0.38,
     boss: {
       name: '暮影指挥官',
-      words: ['resurgence', 'cataclysm', 'dominion', 'unbreakable', 'sovereign'],
+      words: ['resurgence', 'cataclysm', 'dominion', 'unbreakable', 'sovereign', 'indomitable', 'perseverance'],
       speed: 82,
       pushback: 200,
       damage: 3,

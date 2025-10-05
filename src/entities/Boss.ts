@@ -47,7 +47,7 @@ export class Boss extends Phaser.GameObjects.Container {
     this.currentWord = options.words[0];
 
     this.sprite = scene.add
-      .image(0, -52, ICON_TEXTURE_KEYS.enemy)
+      .image(0, -52, ICON_TEXTURE_KEYS.boss)
       .setDisplaySize(130 * options.spriteScale, 130 * options.spriteScale)
       .setDepth(1);
 
